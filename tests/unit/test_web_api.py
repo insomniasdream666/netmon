@@ -20,9 +20,16 @@ class _Repository:
     def __init__(self) -> None:
         self.config_values: dict[str, Any] = {}
         self.rules: dict[str, dict[str, Any]] = {}
+        self.alerts: dict[int, bool] = {}
 
     async def set_config_value(self, key: str, value: Any) -> None:
         self.config_values[key] = value
+
+    async def acknowledge_alert(self, event_id: int) -> bool:
+        if event_id not in self.alerts:
+            return False
+        self.alerts[event_id] = True
+        return True
 
     async def list_alert_rules(self) -> list[dict[str, Any]]:
         return list(self.rules.values())
@@ -134,6 +141,32 @@ def test_post_alert_rule_accepts_form_strings_and_splits_channels(tmp_path: Path
     assert rule["channels"] == ["log", "ntfy"]
     assert repository.rules["custom-latency"]["severity"] == "warning"
     assert response.headers["HX-Trigger"] == "rulesChanged"
+
+
+def test_delete_alert_rule_triggers_refresh(tmp_path: Path) -> None:
+    client, repository, _ = make_client(tmp_path)
+    repository.rules["custom-latency"] = {"id": 1, "name": "custom-latency"}
+
+    response = client.delete("/api/alert-rules/custom-latency")
+
+    assert response.status_code == 200
+    assert response.json() == {"deleted": True, "name": "custom-latency"}
+    assert response.headers["HX-Trigger"] == "rulesChanged"
+    assert "custom-latency" not in repository.rules
+    assert client.delete("/api/alert-rules/custom-latency").status_code == 404
+
+
+def test_acknowledge_alert_triggers_refresh(tmp_path: Path) -> None:
+    client, repository, _ = make_client(tmp_path)
+    repository.alerts[7] = False
+
+    response = client.post("/api/alerts/7/acknowledge")
+
+    assert response.status_code == 200
+    assert response.json() == {"acknowledged": True, "event_id": 7}
+    assert response.headers["HX-Trigger"] == "alertsChanged"
+    assert repository.alerts[7] is True
+    assert client.post("/api/alerts/999/acknowledge").status_code == 404
 
 
 def test_alert_channel_test_and_unknown_index(tmp_path: Path) -> None:
