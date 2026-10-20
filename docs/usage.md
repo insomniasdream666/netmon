@@ -413,8 +413,9 @@ netmon --web --no-ai                          # rules only
 
 The server prints the branded banner and the dashboard URL. All pages are
 server-rendered with FastAPI + Jinja2 and enhanced with HTMX; charts use
-Chart.js. The browser loads HTMX 2.0.4 and Chart.js 4.4.7 from public CDNs, so
-an offline network still gets the rendered pages but no HTMX actions or charts.
+Chart.js. HTMX 2.0.4 and Chart.js 4.4.7 are vendored under
+`netmon/web/static/vendor` and served locally, so the dashboard works without
+internet access.
 
 > **Security:** NetMon has no built-in authentication. Bind to `127.0.0.1`
 > on untrusted networks, or place it behind an authenticating reverse proxy.
@@ -1298,7 +1299,7 @@ reachable URL. The NetMon container healthcheck calls `/api/health`.
 | InfluxDB unavailable / no history | Set `INFLUXDB_TOKEN` or `INFLUX_TOKEN` (environment only), check the URL/org/bucket and `docker compose ps`. Monitoring continues with the in-memory fallback. |
 | AI diagnosis says the AI path failed | Start Ollama (`ollama serve`), pull the configured model (`ollama pull llama3:8b`), check `OLLAMA_HOST`, and raise `OLLAMA_TIMEOUT` for CPU-only hosts. Rule-based diagnosis still works. |
 | Diagnosis button in the web UI returns an error toast | Update to the current version; the UI JSON-encodes HTMX payloads. If you use a reverse proxy, allow `POST` to `/api/diagnose` and `/api/fix`. |
-| Web UI renders but charts/actions do nothing | The browser cannot reach the HTMX/Chart.js CDNs. Allow `unpkg.com` and `cdn.jsdelivr.net`, or serve the page from a network with internet access. |
+| Web UI renders but charts/actions do nothing | Confirm `/static/vendor/htmx.min.js` and `/static/vendor/chart.umd.min.js` return `200`; a reverse proxy may be blocking `/static/`. |
 | Web UI is reachable from other hosts | Bind `--host 127.0.0.1` or add an authenticating reverse proxy; built-in authentication is not enforced. |
 | Change in `config.yaml` has no effect | An environment variable with the same setting wins. Run `netmon config show` and compare. `.env` values also compete; real environment variables win. |
 | A fix did not run | The API requires literal `confirm: true`; the TUI asks `y`; commands are never executed from the CLI. A blocked result includes `blocked_reason`. |

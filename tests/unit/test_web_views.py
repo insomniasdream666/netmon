@@ -2,7 +2,11 @@
 
 from __future__ import annotations
 
-from netmon.web.main import _history_diagnosis_view
+from pathlib import Path
+
+from netmon.web.main import _history_diagnosis_view, templates
+
+ROOT = Path(__file__).resolve().parents[2]
 
 
 def test_history_diagnosis_view_maps_a_stored_record() -> None:
@@ -83,3 +87,26 @@ def test_alert_rule_payload_accepts_form_channel_string() -> None:
 
     assert payload.channels == ["log", "ntfy"]
     assert payload.enabled is True
+
+
+def test_alerts_events_fragment_updates_header_count() -> None:
+    html = templates.env.get_template("alerts.html").render(
+        fragment="events", unacknowledged=4, events=[]
+    )
+
+    assert 'id="unack-count"' in html
+    assert 'hx-swap-oob="outerHTML"' in html
+    assert "4 unacknowledged" in html
+
+
+def test_web_assets_are_vendored_for_offline_use() -> None:
+    base = (ROOT / "netmon/web/templates/base.html").read_text(encoding="utf-8")
+
+    assert "unpkg.com" not in base
+    assert "cdn.jsdelivr.net" not in base
+    assert "/static/vendor/htmx.min.js" in base
+    assert "/static/vendor/chart.umd.min.js" in base
+
+    vendor = ROOT / "netmon/web/static/vendor"
+    for name in ("htmx.min.js", "chart.umd.min.js", "HTMX-LICENSE.txt", "CHARTJS-LICENSE.md"):
+        assert (vendor / name).stat().st_size > 500

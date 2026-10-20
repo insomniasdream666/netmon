@@ -14,7 +14,7 @@
     <span>{{ 'enabled' if alerts_enabled else 'disabled' }}</span>
     <span>min {{ min_severity }}</span>
     <span>cooldown {{ cooldown }}s</span>
-    <span>{{ unacknowledged }} unacknowledged</span>
+    <span id="unack-count">{{ unacknowledged }} unacknowledged</span>
   </div>
 </div>
 
@@ -155,6 +155,9 @@
   <p class="muted">No alert events recorded yet. This is normal on a healthy network.</p>
   {% endif %}
 </section>
+{% if fragment == 'events' %}
+<span id="unack-count" hx-swap-oob="outerHTML">{{ unacknowledged }} unacknowledged</span>
+{% endif %}
 {% endblock %}
 
 {% block rules %}

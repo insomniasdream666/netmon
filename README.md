@@ -1,5 +1,7 @@
 # NetMon
 
+[![CI](https://github.com/insomniasdream666/netmon/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/insomniasdream666/netmon/actions/workflows/ci.yml)
+
 **See your network. Fix it fast.**
 
 NetMon is a real-time network monitor and diagnostic assistant for Kali Linux.
@@ -42,7 +44,8 @@ and requires an explicit confirmation.
   graphs, interface/connection tables, diagnostics and alerts screens.
 - **Web dashboard** — FastAPI + HTMX with REST API, WebSocket live updates,
   SSE alert streaming, clickable diagnostics history, an alert-rule/event
-  manager and a typed Settings page that applies changes live.
+  manager and a typed Settings page that applies changes live. HTMX and
+  Chart.js are vendored locally, so the dashboard works offline.
 - **Two storage layers** — SQLite for config/state/history, InfluxDB for
   time-series metrics (with an in-memory ring-buffer fallback so NetMon keeps
   working when InfluxDB is down).
