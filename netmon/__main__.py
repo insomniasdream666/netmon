@@ -254,7 +254,14 @@ def run_web(config: NetMonConfig) -> None:
     """Serve the FastAPI dashboard."""
     import uvicorn
 
+    from netmon.web.auth import credentials_from_env
     from netmon.web.main import create_app
+
+    try:
+        credentials_from_env(config)
+    except ValueError as exc:
+        typer.echo(f"error: {exc}", err=True)
+        raise typer.Exit(code=1) from exc
 
     async def _serve() -> None:
         # One event loop owns the monitor, the storage and the server so the

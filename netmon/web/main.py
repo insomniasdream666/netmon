@@ -673,6 +673,8 @@ def set_monitor(
 ) -> FastAPI:
     """Bind an externally managed monitor to the module-level app and return it."""
     global _app
+    if config.web.auth:
+        credentials_from_env(config)
     if _app is None:
         _app = create_app(monitor, config, repository=repository, influx=influx)
         return _app
