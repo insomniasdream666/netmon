@@ -73,7 +73,8 @@ def test_setting_items_group_and_skip_secret() -> None:
     assert flat["tui.refresh_interval"]["kind"] == "float"
     assert flat["monitoring.targets.ping"]["kind"] == "json"
     assert flat["env"]["options"] == ("development", "production", "test")
-    assert flat["web.auth"]["reserved"] is True
+    assert flat["web.auth"]["reserved"] is False
+    assert flat["web.refresh_interval"]["reserved"] is True
 
 
 def test_alert_rule_payload_accepts_form_channel_string() -> None:

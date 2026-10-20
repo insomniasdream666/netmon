@@ -115,6 +115,22 @@ def test_patch_rejects_invalid_json_for_a_list_setting(tmp_path: Path) -> None:
     assert "expects JSON" in response.json()["detail"]
 
 
+def test_enabling_auth_requires_password(tmp_path: Path, monkeypatch) -> None:
+    client, _, _ = make_client(tmp_path)
+    monkeypatch.delenv("NETMON_WEB_PASSWORD", raising=False)
+
+    response = client.patch("/api/config/web.auth", json={"value": True})
+
+    assert response.status_code == 400
+    assert "NETMON_WEB_PASSWORD" in response.json()["detail"]
+
+    monkeypatch.setenv("NETMON_WEB_PASSWORD", "secret")
+    response = client.patch("/api/config/web.auth", json={"value": True})
+
+    assert response.status_code == 200
+    assert response.json()["value"] is True
+
+
 def test_post_alert_rule_accepts_form_strings_and_splits_channels(tmp_path: Path) -> None:
     client, repository, _ = make_client(tmp_path)
 

@@ -20,6 +20,7 @@ from netmon.config.settings import CONFIG_SECTIONS, get_by_path, save_config, se
 from netmon.core.alerts import OPERATORS
 from netmon.utils.validation import ValidationError
 from netmon.web.api.health import get_config, get_monitor, get_repository
+from netmon.web.auth import credentials_from_env
 
 router = APIRouter(tags=["config"])
 
@@ -156,6 +157,11 @@ async def api_config_update(
     except KeyError as exc:
         message = str(exc.args[0]) if exc.args else f"unknown config key: {candidate}"
         raise HTTPException(status_code=404, detail=message) from exc
+    if updated.web.auth:
+        try:
+            credentials_from_env(updated)
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
 
     repository = get_repository(request)
     await repository.set_config_value(candidate, value)

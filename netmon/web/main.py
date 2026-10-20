@@ -47,6 +47,7 @@ from netmon.web.api import config as config_api
 from netmon.web.api import diagnostics as diagnostics_api
 from netmon.web.api import health as health_api
 from netmon.web.api import metrics as metrics_api
+from netmon.web.auth import BasicAuthMiddleware, credentials_from_env
 
 if TYPE_CHECKING:  # pragma: no cover - typing only
     from netmon.collectors.base import BaseCollector
@@ -79,7 +80,7 @@ SETTING_OPTIONS: dict[str, tuple[str, ...]] = {
 
 # Keys that exist in the model but have no effect yet; labelled in the UI so
 # operators are not surprised when they change nothing.
-RESERVED_SETTINGS = frozenset({"web.auth", "web.refresh_interval"})
+RESERVED_SETTINGS = frozenset({"web.refresh_interval"})
 
 
 # ---------------------------------------------------------------------------
@@ -635,6 +636,9 @@ def _build_app(
         influx=influx,
         owns_monitor=owns_monitor,
     )
+    if config is not None and credentials_from_env(config) is not None:
+        logger.info("web authentication enabled")
+    app.add_middleware(BasicAuthMiddleware)
     app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
     app.include_router(health_api.router)
     app.include_router(metrics_api.router)

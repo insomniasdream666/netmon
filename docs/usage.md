@@ -417,9 +417,14 @@ Chart.js. HTMX 2.0.4 and Chart.js 4.4.7 are vendored under
 `netmon/web/static/vendor` and served locally, so the dashboard works without
 internet access.
 
-> **Security:** NetMon has no built-in authentication. Bind to `127.0.0.1`
-> on untrusted networks, or place it behind an authenticating reverse proxy.
-> `web.auth` is reserved and is not currently enforced.
+> **Security:** NetMon supports optional HTTP Basic authentication. Set
+> `web.auth: true` and `NETMON_WEB_PASSWORD` (plus optional
+> `NETMON_WEB_USERNAME`, default `admin`) to protect pages, REST calls,
+> WebSocket and SSE streams. `/api/health` and `/static/` stay public for
+> container health checks and offline assets. Enabling auth without a password
+> is rejected; when set through `/settings` the check runs before the value is
+> saved. Basic auth does not encrypt traffic, so bind to `127.0.0.1` or use a
+> TLS-terminating reverse proxy on untrusted networks.
 
 ### Pages
 
@@ -487,8 +492,11 @@ pushes and an SSE stream (`/sse/alerts`) for new alerts.
   configuration to `config.yaml`. Lists and objects accept JSON such as
   `["8.8.8.8", "1.1.1.1"]`.
 - The InfluxDB token is never shown or editable; it remains environment-only.
-- `web.auth` and `web.refresh_interval` are labelled **reserved** because the
-  current build parses them but does not enforce/use them.
+- `web.auth` applies immediately and requires `NETMON_WEB_PASSWORD`; saving it
+  without that environment variable returns a validation error. Use
+  `NETMON_WEB_USERNAME` to change the default `admin` username.
+- `web.refresh_interval` is labelled **reserved** because the current build
+  parses it but the dashboard still uses fixed 5-second HTMX refreshes.
 - Environment variables still override saved YAML values on the next start.
 
 ### HTML fragments (HTMX)
@@ -514,8 +522,9 @@ page reload.
 
 ### REST API
 
-All endpoints return JSON unless stated otherwise. There is no API
-authentication.
+All endpoints return JSON unless stated otherwise. When `web.auth` is enabled,
+send HTTP Basic credentials on every request except `GET /api/health`, which
+remains public for container health checks.
 
 | Method | Path | Purpose |
 |---|---|---|
@@ -882,7 +891,7 @@ blank; rows show `source: memory`.
 |---|---|---|
 | `host` | `0.0.0.0` | Bind address |
 | `port` | `8080` | Listen port (1-65535) |
-| `auth` | `false` | Reserved; authentication is not currently enforced |
+| `auth` | `false` | Require HTTP Basic auth; credentials are environment-only |
 | `refresh_interval` | `5` | Reserved; the dashboard uses fixed 5-second HTMX refresh |
 
 ### `tui`
@@ -917,6 +926,7 @@ blank; rows show `source: memory`.
 | `NETMON_CONFIG_DIR` | Base directory for default paths |
 | `NETMON_ENV_FILE` | Explicit `.env` file |
 | `NETMON_WEB_HOST` / `NETMON_WEB_PORT` / `NETMON_WEB_AUTH` | `web.*` |
+| `NETMON_WEB_USERNAME` / `NETMON_WEB_PASSWORD` | HTTP Basic credentials (environment-only) |
 | `NETMON_ALERTS_ENABLED` | `alerts.enabled` |
 | `NETMON_ENV` / `NETMON_DEBUG` / `NETMON_LOG_LEVEL` | Root settings |
 
@@ -1257,8 +1267,10 @@ The stack in `docker/docker-compose.yml` runs NetMon and InfluxDB:
 ```bash
 export INFLUX_TOKEN="$(openssl rand -hex 24)"
 export INFLUXDB_PASSWORD="$(openssl rand -hex 16)"
+export NETMON_WEB_PASSWORD="$(openssl rand -hex 16)"
+echo "NetMon login: ${NETMON_WEB_USERNAME:-admin} / $NETMON_WEB_PASSWORD"
 docker compose -f docker/docker-compose.yml up -d
-# dashboard: http://localhost:8080
+# dashboard: http://localhost:8080 (HTTP Basic auth)
 ```
 
 | Service | Purpose |
@@ -1273,6 +1285,8 @@ Key environment variables for the containers:
 |---|---|---|
 | `INFLUX_TOKEN` | yes | InfluxDB admin token, also used by NetMon |
 | `INFLUXDB_PASSWORD` | yes | Initial InfluxDB admin password |
+| `NETMON_WEB_PASSWORD` | yes | Dashboard HTTP Basic auth password |
+| `NETMON_WEB_USERNAME` | no | Dashboard username, defaults `admin` |
 | `INFLUXDB_ORG` / `INFLUXDB_BUCKET` | no | Defaults `netmon` / `metrics` |
 | `OLLAMA_HOST` | no | Defaults to `http://host.docker.internal:11434` |
 | `OLLAMA_MODEL` | no | Defaults to `llama3:8b` |
@@ -1286,7 +1300,10 @@ docker compose -f docker/docker-compose.yml --profile host-net up -d netmon-host
 ```
 
 Ollama is expected on the host. If it runs elsewhere, set `OLLAMA_HOST` to a
-reachable URL. The NetMon container healthcheck calls `/api/health`.
+reachable URL. Compose enables `web.auth`, so the dashboard requires the
+password above. The NetMon container healthcheck calls `/api/health`, which
+stays public. Put these exports in a protected environment file rather than
+committing them.
 
 ---
 
@@ -1300,7 +1317,9 @@ reachable URL. The NetMon container healthcheck calls `/api/health`.
 | AI diagnosis says the AI path failed | Start Ollama (`ollama serve`), pull the configured model (`ollama pull llama3:8b`), check `OLLAMA_HOST`, and raise `OLLAMA_TIMEOUT` for CPU-only hosts. Rule-based diagnosis still works. |
 | Diagnosis button in the web UI returns an error toast | Update to the current version; the UI JSON-encodes HTMX payloads. If you use a reverse proxy, allow `POST` to `/api/diagnose` and `/api/fix`. |
 | Web UI renders but charts/actions do nothing | Confirm `/static/vendor/htmx.min.js` and `/static/vendor/chart.umd.min.js` return `200`; a reverse proxy may be blocking `/static/`. |
-| Web UI is reachable from other hosts | Bind `--host 127.0.0.1` or add an authenticating reverse proxy; built-in authentication is not enforced. |
+| Web UI is reachable from other hosts | Bind `--host 127.0.0.1`, enable `web.auth` with `NETMON_WEB_PASSWORD`, and/or add a TLS-terminating reverse proxy. |
+| Enabling `web.auth` fails validation | Export a non-empty `NETMON_WEB_PASSWORD` in the environment (and the same variable for the service/container), then retry. |
+| Browser keeps asking for the dashboard password | Confirm `NETMON_WEB_USERNAME`/`NETMON_WEB_PASSWORD` match the running process; environment changes need a restart. |
 | Change in `config.yaml` has no effect | An environment variable with the same setting wins. Run `netmon config show` and compare. `.env` values also compete; real environment variables win. |
 | A fix did not run | The API requires literal `confirm: true`; the TUI asks `y`; commands are never executed from the CLI. A blocked result includes `blocked_reason`. |
 | Port scans are slow or noisy | Increase `monitoring.intervals.ports`, shrink `port_scan.ports`, or set `port_scan.enabled: false`. |

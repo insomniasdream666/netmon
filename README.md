@@ -44,8 +44,9 @@ and requires an explicit confirmation.
   graphs, interface/connection tables, diagnostics and alerts screens.
 - **Web dashboard** — FastAPI + HTMX with REST API, WebSocket live updates,
   SSE alert streaming, clickable diagnostics history, an alert-rule/event
-  manager and a typed Settings page that applies changes live. HTMX and
-  Chart.js are vendored locally, so the dashboard works offline.
+  manager and a typed Settings page that applies changes live. Optional HTTP
+  Basic authentication protects pages, APIs and streams. HTMX and Chart.js are
+  vendored locally, so the dashboard works offline.
 - **Two storage layers** — SQLite for config/state/history, InfluxDB for
   time-series metrics (with an in-memory ring-buffer fallback so NetMon keeps
   working when InfluxDB is down).
@@ -136,10 +137,13 @@ Key settings:
 | `alerts.cooldown` | `300` | Seconds between duplicate alerts |
 | `ollama.model` | `llama3:8b` | Local model for AI diagnostics |
 | `web.port` | `8080` | Web dashboard port |
+| `web.auth` | `false` | Require HTTP Basic authentication |
 | `storage.retention.diagnostics` | `90` | Days of diagnostic history kept |
 
 The InfluxDB token is **environment-only** (`INFLUXDB_TOKEN`): it is stripped
-from `config.yaml` on save and cannot be set through the API.
+from `config.yaml` on save and cannot be set through the API. Web auth
+credentials are environment-only too (`NETMON_WEB_USERNAME`,
+`NETMON_WEB_PASSWORD`).
 
 Full reference, metric schema and troubleshooting: **[docs/usage.md](docs/usage.md)**.
 
@@ -195,6 +199,20 @@ tests) and `/settings` (every effective setting, validated and applied live).
 Every diagnostics history entry links to its full record at
 `/diagnostics/history/{id}`. The complete endpoint reference is in
 [docs/usage.md](docs/usage.md#4-web-dashboard-and-http-api).
+
+When `web.auth` is enabled, every page, REST call, WebSocket and SSE stream
+requires HTTP Basic credentials. `/api/health` and `/static/` remain public so
+container health checks and offline assets keep working. Set the credentials
+in the environment and enable auth in config:
+
+```bash
+export NETMON_WEB_USERNAME=admin
+export NETMON_WEB_PASSWORD='use-a-long-random-password'
+netmon config set web.auth true
+```
+
+Basic auth does not encrypt traffic. Bind to `127.0.0.1` or terminate TLS at an
+authenticating reverse proxy before exposing the dashboard to a network.
 
 ## Development
 

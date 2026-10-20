@@ -5,9 +5,11 @@
 # Usage:
 #   export INFLUX_TOKEN=$(openssl rand -hex 24)
 #   export INFLUXDB_PASSWORD=$(openssl rand -hex 16)
+#   export NETMON_WEB_PASSWORD=$(openssl rand -hex 16)
+#   echo "NetMon login: ${NETMON_WEB_USERNAME:-admin} / $NETMON_WEB_PASSWORD"
 #   docker compose -f docker/docker-compose.yml up -d
 #
-# Then open http://localhost:8080
+# Then open http://localhost:8080 and use the credentials above.
 
 services:
   influxdb:
@@ -48,6 +50,9 @@ services:
       NETMON_ENV: production
       NETMON_WEB_HOST: 0.0.0.0
       NETMON_WEB_PORT: "8080"
+      NETMON_WEB_AUTH: "true"
+      NETMON_WEB_USERNAME: ${NETMON_WEB_USERNAME:-admin}
+      NETMON_WEB_PASSWORD: ${NETMON_WEB_PASSWORD:?set NETMON_WEB_PASSWORD}
       NETMON_SQLITE_PATH: /data/config.db
       NETMON_CONFIG_PATH: /data/config.yaml
       INFLUXDB_URL: http://influxdb:8086
@@ -100,6 +105,9 @@ services:
     environment:
       NETMON_ENV: production
       NETMON_WEB_PORT: "8080"
+      NETMON_WEB_AUTH: "true"
+      NETMON_WEB_USERNAME: ${NETMON_WEB_USERNAME:-admin}
+      NETMON_WEB_PASSWORD: ${NETMON_WEB_PASSWORD:?set NETMON_WEB_PASSWORD}
       NETMON_SQLITE_PATH: /data/config.db
       INFLUXDB_URL: http://127.0.0.1:8086
       INFLUX_TOKEN: ${INFLUX_TOKEN:?set INFLUX_TOKEN}
