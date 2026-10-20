@@ -1294,6 +1294,10 @@ Key environment variables for the containers:
 | `OLLAMA_MODEL` | no | Defaults to `llama3:8b` |
 | `NETMON_ALERTS_ENABLED` | no | Defaults `true` |
 
+Compose passes an empty `NETMON_WEB_PASSWORD` through so the InfluxDB-only
+command still works; if the NetMon service is started without it, the app
+refuses to start rather than serving the dashboard unauthenticated.
+
 The default bridge network only exposes the container's own interfaces; use
 the `host-net` profile when monitoring the host network stack:
 

@@ -52,7 +52,8 @@ services:
       NETMON_WEB_PORT: "8080"
       NETMON_WEB_AUTH: "true"
       NETMON_WEB_USERNAME: ${NETMON_WEB_USERNAME:-admin}
-      NETMON_WEB_PASSWORD: ${NETMON_WEB_PASSWORD:?set NETMON_WEB_PASSWORD}
+      # Required by the app when web.auth is enabled; empty values fail closed.
+      NETMON_WEB_PASSWORD: ${NETMON_WEB_PASSWORD:-}
       NETMON_SQLITE_PATH: /data/config.db
       NETMON_CONFIG_PATH: /data/config.yaml
       INFLUXDB_URL: http://influxdb:8086
@@ -107,7 +108,8 @@ services:
       NETMON_WEB_PORT: "8080"
       NETMON_WEB_AUTH: "true"
       NETMON_WEB_USERNAME: ${NETMON_WEB_USERNAME:-admin}
-      NETMON_WEB_PASSWORD: ${NETMON_WEB_PASSWORD:?set NETMON_WEB_PASSWORD}
+      # Required by the app when web.auth is enabled; empty values fail closed.
+      NETMON_WEB_PASSWORD: ${NETMON_WEB_PASSWORD:-}
       NETMON_SQLITE_PATH: /data/config.db
       INFLUXDB_URL: http://127.0.0.1:8086
       INFLUX_TOKEN: ${INFLUX_TOKEN:?set INFLUX_TOKEN}
