@@ -1,0 +1,65 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+dist/
+*.egg-info/
+.eggs/
+pip-wheel-metadata/
+
+# Virtual environments
+.venv/
+venv/
+env/
+ENV/
+
+# Tooling caches
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+.coverage.*
+htmlcov/
+.tox/
+.nox/
+*.swp
+*.swo
+
+# NetMon runtime data
+*.db
+*.db-wal
+*.db-shm
+*.sqlite
+*.sqlite3
+*.log
+netmon.log
+logs/
+*.pid
+*.tmp
+*.bak
+
+# Secrets / local config
+.env
+.env.*
+!.env.example
+config.yaml
+config.yml
+config.local.yaml
+secrets/
+*.pem
+*.key
+
+# Local tooling
+.cache/
+.direnv/
+local/
+
+# Editors / OS
+.idea/
+.vscode/
+.DS_Store
+*.orig
+*.rej

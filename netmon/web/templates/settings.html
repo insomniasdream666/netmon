@@ -1,0 +1,92 @@
+{% extends "base.html" %}
+{% block title %}Settings{% endblock %}
+
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>Settings</h1>
+    <p class="muted">
+      Edit the effective configuration. Each value is validated, applied to the running
+      monitor and written to <span class="mono">config.yaml</span>. Environment variables
+      still win on the next start.
+    </p>
+  </div>
+  <div class="page-head-meta mono muted">
+    <span>{{ setting_count }} settings</span>
+    <span>config {{ config_path or '~/.config/netmon/config.yaml' }}</span>
+  </div>
+</div>
+
+<section class="card">
+  <p class="muted small">
+    Lists and objects are edited as JSON, for example
+    <span class="mono">["8.8.8.8", "1.1.1.1"]</span>. The InfluxDB token is
+    environment-only and never appears here: set
+    <span class="mono">INFLUX_TOKEN</span> or add it to
+    <span class="mono">~/.config/netmon/.env</span>.
+  </p>
+</section>
+
+{% for section, items in sections %}
+<section class="card">
+  <header class="card-head">
+    <h2>{{ section }}</h2>
+    <span class="muted small mono">{{ items|length }} settings</span>
+  </header>
+  <div class="table-wrap">
+    <table class="table settings-table">
+      <thead>
+        <tr><th>Setting</th><th>Value</th></tr>
+      </thead>
+      <tbody>
+        {% for item in items %}
+        <tr id="setting-{{ item.key|replace('.', '-') }}">
+          <td class="mono small setting-key">
+            {{ item.key }}
+            {% if item.reserved %}
+            <span class="badge state-unknown" title="parsed but not enforced by this build">reserved</span>
+            {% endif %}
+          </td>
+          <td>
+            <form class="setting-form" hx-patch="/api/config/{{ item.key }}" hx-swap="none"
+                  hx-disabled-elt="find button" autocomplete="off">
+              {% if item.kind == 'bool' %}
+              <select class="input" name="value" aria-label="{{ item.key }}">
+                <option value="true" {% if item.value == 'true' %}selected{% endif %}>true</option>
+                <option value="false" {% if item.value != 'true' %}selected{% endif %}>false</option>
+              </select>
+              {% elif item.kind in ('int', 'float') %}
+              <input class="input mono" type="number" name="value" value="{{ item.value }}"
+                     {% if item.kind == 'float' %}step="any"{% else %}step="1"{% endif %}
+                     aria-label="{{ item.key }}">
+              {% elif item.kind == 'json' %}
+              <textarea class="input mono json-input" name="value" rows="3" spellcheck="false"
+                        aria-label="{{ item.key }}">{{ item.json }}</textarea>
+              {% elif item.options %}
+              <select class="input" name="value" aria-label="{{ item.key }}">
+                {% for option in item.options %}
+                <option value="{{ option }}" {% if item.value == option %}selected{% endif %}>{{ option }}</option>
+                {% endfor %}
+              </select>
+              {% else %}
+              <input class="input" type="text" name="value" value="{{ item.value }}"
+                     spellcheck="false" aria-label="{{ item.key }}">
+              {% endif %}
+              <button type="submit" class="btn btn-small btn-info">save</button>
+              <span class="setting-status muted small" aria-live="polite"></span>
+            </form>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+{% endfor %}
+
+{% if not sections %}
+<section class="card">
+  <p class="muted">Configuration is not loaded yet.</p>
+</section>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,282 @@
+{% extends "base.html" %}
+{% block title %}Dashboard{% endblock %}
+
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>Dashboard</h1>
+    <p class="muted">Live health for {{ hostname or 'this host' }}. Sections refresh every 5 seconds.</p>
+  </div>
+  <div class="page-head-meta mono muted">
+    <span>cycles {{ cycles }}</span>
+    <span>uptime {{ uptime_text }}</span>
+    <span>last cycle {{ last_cycle_text }}</span>
+  </div>
+</div>
+
+{{ self.summary() }}
+{{ self.connectivity() }}
+{{ self.interfaces() }}
+{{ self.alerts() }}
+
+<section class="chart-grid" aria-label="History charts">
+  <article class="card chart-card">
+    <header class="card-head">
+      <h2>Bandwidth history</h2>
+      <span class="muted small">15m window, 5s mean</span>
+    </header>
+    <div class="chart-wrap">
+      <canvas data-chart
+              data-measurement="bandwidth"
+              data-range="15m"
+              data-interval="5s"
+              data-fields="rx_bytes_per_sec,tx_bytes_per_sec"
+              data-format="rate"
+              data-refresh="15000"
+              height="200"></canvas>
+      <p class="chart-empty muted small" hidden>no samples yet</p>
+    </div>
+  </article>
+  <article class="card chart-card">
+    <header class="card-head">
+      <h2>Health history</h2>
+      <span class="muted small">1h window, 30s mean</span>
+    </header>
+    <div class="chart-wrap">
+      <canvas data-chart
+              data-measurement="health_score"
+              data-range="1h"
+              data-interval="30s"
+              data-fields="score"
+              data-tags="component:overall"
+              data-format="percent"
+              data-refresh="20000"
+              height="200"></canvas>
+      <p class="chart-empty muted small" hidden>no samples yet</p>
+    </div>
+  </article>
+</section>
+
+<section class="card">
+  <header class="card-head">
+    <h2>Collectors</h2>
+    <span class="muted small mono">
+      influxdb {{ 'configured' if influx.configured else 'memory-only' }}{% if influx.available is sameas false %} (unavailable){% endif %}
+    </span>
+  </header>
+  {% if collectors %}
+  <div class="table-wrap">
+    <table class="table">
+      <thead>
+        <tr><th>Collector</th><th>Interval</th><th>Runs</th><th>Failures</th><th>Last run</th><th>Last error</th></tr>
+      </thead>
+      <tbody>
+        {% for collector in collectors %}
+        <tr>
+          <td class="mono">{{ collector.name }}</td>
+          <td class="mono">{{ collector.interval }}s</td>
+          <td class="mono">{{ collector.run_count }}</td>
+          <td class="mono">{{ collector.failure_count }}</td>
+          <td class="mono">{{ collector.last_run|format_ago if collector.last_run else 'never' }}</td>
+          <td class="mono small muted">{{ collector.last_error|truncate(60) if collector.last_error else '--' }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <p class="muted">No collectors are registered on this instance.</p>
+  {% endif %}
+  {% if errors %}
+  <details class="errors">
+    <summary class="muted small">monitor errors ({{ errors|length }})</summary>
+    <ul class="error-list mono small">
+      {% for error in errors %}<li>{{ error }}</li>{% endfor %}
+    </ul>
+  </details>
+  {% endif %}
+</section>
+{% endblock %}
+
+{% block summary %}
+<section id="summary" class="grid-summary"
+         hx-get="/?fragment=summary" hx-trigger="every 5s" hx-target="#summary" hx-swap="outerHTML">
+  <article class="card score-card" data-state="{{ state_name }}">
+    <header class="card-head">
+      <h2>Health score</h2>
+      <span class="badge state-{{ state_name }}">{{ state_name|health_glyph }} {{ state_name }}</span>
+    </header>
+    <p class="score-value mono" data-live="score">{{ '%.0f'|format(score) }}<span class="score-unit">/100</span></p>
+    <div class="health-bar" aria-hidden="true"><span style="width: {{ score }}%"></span></div>
+    <dl class="kv mono">
+      <dt>issues</dt><dd>{{ issue_count }}</dd>
+      <dt>cycles</dt><dd data-live="cycles">{{ cycles }}</dd>
+      <dt>uptime</dt><dd>{{ uptime_text }}</dd>
+      <dt>checked</dt><dd>{{ (health.checked_at|format_ago) if health else 'never' }}</dd>
+    </dl>
+  </article>
+
+  {% for component in components %}
+  <article class="card component-card" data-state="{{ component.state }}">
+    <header class="card-head">
+      <h3>{{ component.component }}</h3>
+      <span class="glyph state-{{ component.state }}" title="{{ component.state }}">{{ component.state|health_glyph }}</span>
+    </header>
+    <p class="component-score mono">{{ '%.0f'|format(component.score) }}%</p>
+    <p class="muted small">{{ component.message }}</p>
+    {% if component.issues %}
+    <p class="small warning-text">{{ component.issues|length }} issue(s)</p>
+    {% endif %}
+  </article>
+  {% endfor %}
+
+  {% if not components %}
+  <article class="card component-card">
+    <p class="muted">No component data yet; the collectors have not reported.</p>
+  </article>
+  {% endif %}
+</section>
+{% endblock %}
+
+{% block connectivity %}
+<section id="connectivity" class="card"
+         hx-get="/?fragment=connectivity" hx-trigger="every 5s" hx-target="#connectivity" hx-swap="outerHTML">
+  <header class="card-head">
+    <h2>Connectivity</h2>
+    <span class="muted small mono">{{ connectivity.collected_at|format_ago if connectivity.collected_at else 'never' }}</span>
+  </header>
+
+  <div class="grid-3">
+    <div class="mini-card">
+      <h3>Gateway</h3>
+      {% if connectivity.gateway %}
+      <p class="mono">
+        <span class="glyph state-{{ 'ok' if connectivity.gateway.reachable else 'critical' }}">{{ ('ok' if connectivity.gateway.reachable else 'critical')|health_glyph }}</span>
+        {{ connectivity.gateway.gateway or 'unknown' }}
+      </p>
+      <p class="muted small mono">latency {{ connectivity.gateway.latency_ms|format_latency }}, loss {{ connectivity.gateway.packet_loss|format_percent(precision=0) }}</p>
+      {% else %}
+      <p class="muted small">no gateway data</p>
+      {% endif %}
+    </div>
+    <div class="mini-card">
+      <h3>Internet</h3>
+      {% if connectivity.internet %}
+      <p class="mono">
+        <span class="glyph state-{{ 'ok' if connectivity.internet.reachable else 'critical' }}">{{ ('ok' if connectivity.internet.reachable else 'critical')|health_glyph }}</span>
+        {{ connectivity.internet.targets_ok or 0 }}/{{ connectivity.internet.targets_total or 0 }} targets
+      </p>
+      <p class="muted small mono">avg {{ connectivity.internet.avg_latency_ms|format_latency }}, loss {{ connectivity.internet.avg_packet_loss|format_percent(precision=1) }}</p>
+      {% else %}
+      <p class="muted small">no internet probe data</p>
+      {% endif %}
+    </div>
+    <div class="mini-card">
+      <h3>DNS</h3>
+      {% if connectivity.dns_health %}
+      <p class="mono">
+        <span class="glyph state-{{ 'ok' if connectivity.dns_health.healthy else 'warning' }}">{{ ('ok' if connectivity.dns_health.healthy else 'warning')|health_glyph }}</span>
+        {{ connectivity.dns_health.failures or 0 }} of {{ connectivity.dns_health.total or 0 }} failed
+      </p>
+      <p class="muted small mono">avg {{ connectivity.dns_health.avg_latency_ms|format_latency }}, failure rate {{ connectivity.dns_health.failure_rate|format_percent(precision=1) }}</p>
+      {% else %}
+      <p class="muted small">no DNS data</p>
+      {% endif %}
+    </div>
+  </div>
+
+  {% if connectivity.ping %}
+  <div class="table-wrap">
+    <table class="table">
+      <thead>
+        <tr><th>Ping target</th><th>Result</th><th>Latency</th><th>Loss</th><th>Jitter</th></tr>
+      </thead>
+      <tbody>
+        {% for target, info in connectivity.ping.items() %}
+        <tr>
+          <td class="mono">{{ target }}</td>
+          <td><span class="glyph state-{{ 'ok' if info.success else 'critical' }}">{{ ('ok' if info.success else 'critical')|health_glyph }}</span> {{ 'reachable' if info.success else 'unreachable' }}</td>
+          <td class="mono">{{ info.latency_ms|format_latency }}</td>
+          <td class="mono">{{ info.packet_loss|format_percent(precision=0) }}</td>
+          <td class="mono">{{ info.jitter_ms|format_latency }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% endif %}
+
+  {% if connectivity.traceroute %}
+  <details class="traceroute">
+    <summary class="muted small">traceroute ({{ connectivity.traceroute|length }} target(s))</summary>
+    {% for target, route in connectivity.traceroute.items() %}
+    <p class="small mono">
+      {{ target }}:
+      {% if route.success %}{{ route.hops|length }} hop(s), last {{ (route.hops[-1].address if route.hops else '--') }}{% else %}{{ route.error or 'failed' }}{% endif %}
+    </p>
+    {% endfor %}
+  </details>
+  {% endif %}
+</section>
+{% endblock %}
+
+{% block interfaces %}
+<section id="interfaces" class="card"
+         hx-get="/?fragment=interfaces" hx-trigger="every 5s" hx-target="#interfaces" hx-swap="outerHTML">
+  <header class="card-head">
+    <h2>Interfaces</h2>
+    <a class="small" href="/interfaces">open detail view</a>
+  </header>
+  {% if interfaces %}
+  <div class="table-wrap">
+    <table class="table">
+      <thead>
+        <tr><th>Interface</th><th>State</th><th>IPv4</th><th>Speed</th><th>RX/s</th><th>TX/s</th><th>Errors</th><th>Util</th></tr>
+      </thead>
+      <tbody>
+        {% for row in interfaces %}
+        <tr>
+          <td class="mono">{{ row.name }}</td>
+          <td>
+            <span class="glyph state-{{ 'ok' if row.is_up else 'critical' }}">{{ ('ok' if row.is_up else 'critical')|health_glyph }}</span>
+            {{ 'up' if row.is_up else 'down' }}
+          </td>
+          <td class="mono">{{ (row.ipv4 or [])|join(', ') or '--' }}</td>
+          <td class="mono">{{ (row.speed_mbps * 1000000)|format_bps if row.speed_mbps else '--' }}</td>
+          <td class="mono">{{ row.bandwidth.rx_bytes_per_sec|format_rate if row.bandwidth else '--' }}</td>
+          <td class="mono">{{ row.bandwidth.tx_bytes_per_sec|format_rate if row.bandwidth else '--' }}</td>
+          <td class="mono">{{ (row.rx_errors or 0) + (row.tx_errors or 0) }}</td>
+          <td class="mono">{{ row.bandwidth.utilization_percent|format_percent(precision=0) if row.bandwidth and row.bandwidth.utilization_percent is not none else '--' }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <p class="muted">No interface data collected yet.</p>
+  {% endif %}
+</section>
+{% endblock %}
+
+{% block alerts %}
+<section id="alerts" class="card"
+         hx-get="/?fragment=alerts" hx-trigger="every 5s" hx-target="#alerts" hx-swap="outerHTML">
+  <header class="card-head">
+    <h2>Recent alerts</h2>
+    <span class="muted small mono">sent {{ alert_stats.sent or 0 }}, suppressed {{ alert_stats.suppressed or 0 }}</span>
+  </header>
+  <ul class="alert-list" id="alert-stream">
+    {% for alert in alerts %}
+    <li class="alert severity-{{ alert.severity }}">
+      <span class="glyph state-{{ alert.severity }}">{{ alert.severity|health_glyph }}</span>
+      <div class="alert-body">
+        <p class="alert-message">{{ alert.message }}</p>
+        <p class="muted small mono">{{ alert.rule_name }} / {{ alert.metric or 'issue' }} / {{ alert.age }}</p>
+      </div>
+    </li>
+    {% else %}
+    <li class="muted">No alerts fired yet.</li>
+    {% endfor %}
+  </ul>
+</section>
+{% endblock %}

@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+{% block title %}Diagnosis #{{ diagnosis.id }}{% endblock %}
+
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>Diagnosis <span class="mono muted">#{{ diagnosis.id }}</span></h1>
+    <p class="muted mono">
+      {{ diagnosis.issue_type }}
+      {% if diagnosis.created_at %}| {{ diagnosis.created_at[:19]|replace('T', ' ') }}{% endif %}
+    </p>
+  </div>
+  <div class="page-head-meta">
+    <a class="btn btn-ghost btn-small" href="/diagnostics">back to diagnostics</a>
+  </div>
+</div>
+
+{% include "_diagnosis_card.html" %}
+
+{% if record.executed_command or record.execution_output or record.learning_note %}
+<section class="card">
+  <header class="card-head">
+    <h2>Recorded outcome</h2>
+    {% if record.execution_success is sameas true %}
+    <span class="badge state-ok">resolved</span>
+    {% elif record.execution_success is sameas false %}
+    <span class="badge state-critical">unresolved</span>
+    {% else %}
+    <span class="badge state-unknown">not executed</span>
+    {% endif %}
+  </header>
+  <dl class="kv mono">
+    {% if record.executed_command %}<dt>command</dt><dd><code class="command mono">{{ record.executed_command }}</code></dd>{% endif %}
+    {% if record.resolution %}<dt>resolution</dt><dd>{{ record.resolution }}</dd>{% endif %}
+  </dl>
+  {% if record.execution_output %}<pre class="output mono small">{{ record.execution_output }}</pre>{% endif %}
+  {% if record.learning_note %}<p class="muted small">{{ record.learning_note }}</p>{% endif %}
+</section>
+{% endif %}
+{% endblock %}

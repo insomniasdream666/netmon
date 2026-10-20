@@ -1,0 +1,138 @@
+{% extends "base.html" %}
+{% block title %}Interfaces{% endblock %}
+
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>Interfaces</h1>
+    <p class="muted">
+      Monitoring {{ interfaces|length }} interface(s){% if ignored_interfaces %}, ignoring {{ ignored_interfaces|length }}{% endif %}.
+      Expand a row for live counters; the panel refreshes every 5 seconds.
+    </p>
+  </div>
+  <div class="page-head-meta mono muted">
+    <span>default route {{ default_route.gateway or '--' }}{% if default_route.interface %} via {{ default_route.interface }}{% endif %}</span>
+    <span>last cycle {{ last_cycle_text }}</span>
+  </div>
+</div>
+
+{{ self.table() }}
+
+<section class="card" id="detail-host">
+  {% if selected %}
+  {{ self.detail() }}
+  {% else %}
+  <p class="muted">Select "details" on a row to inspect an interface.</p>
+  {% endif %}
+</section>
+
+{% if ignored_interfaces %}
+<section class="card">
+  <header class="card-head">
+    <h2>Ignored interfaces</h2>
+    <span class="muted small">monitoring.ignored_interfaces</span>
+  </header>
+  <p class="mono small muted">{{ ignored_interfaces|join(', ') }}</p>
+</section>
+{% endif %}
+{% endblock %}
+
+{% block table %}
+<div class="table-wrap" id="interfaces-table">
+  <table class="table">
+    <thead>
+      <tr>
+        <th>Interface</th><th>State</th><th>IPv4</th><th>Speed</th>
+        <th>RX/s</th><th>TX/s</th><th>Errors</th><th>Util</th><th></th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for row in interfaces %}
+      <tr data-state="{{ 'ok' if row.is_up else 'critical' }}">
+        <td class="mono">{{ row.name }}</td>
+        <td>
+          <span class="glyph state-{{ 'ok' if row.is_up else 'critical' }}">{{ ('ok' if row.is_up else 'critical')|health_glyph }}</span>
+          {{ 'up' if row.is_up else 'down' }}
+        </td>
+        <td class="mono">{{ (row.ipv4 or [])|join(', ') or '--' }}</td>
+        <td class="mono">{{ (row.speed_mbps * 1000000)|format_bps if row.speed_mbps else '--' }}</td>
+        <td class="mono">{{ row.bandwidth.rx_bytes_per_sec|format_rate if row.bandwidth else '--' }}</td>
+        <td class="mono">{{ row.bandwidth.tx_bytes_per_sec|format_rate if row.bandwidth else '--' }}</td>
+        <td class="mono">{{ (row.rx_errors or 0) + (row.tx_errors or 0) }}</td>
+        <td class="mono">{{ row.bandwidth.utilization_percent|format_percent(precision=0) if row.bandwidth and row.bandwidth.utilization_percent is not none else '--' }}</td>
+        <td>
+          <button type="button" class="btn btn-ghost btn-small"
+                  hx-get="/interfaces?interface={{ row.name }}&fragment=detail"
+                  hx-target="#detail-host"
+                  hx-swap="innerHTML">details</button>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}
+
+{% block detail %}
+{% if selected %}
+<div class="detail-card" data-state="{{ 'ok' if selected.is_up else 'critical' }}">
+  <header class="card-head">
+    <h2 class="mono">{{ selected.name }}</h2>
+    <div class="row-actions">
+      {% if selected.ignored %}<span class="badge state-unknown">ignored</span>{% endif %}
+      <button type="button" class="btn btn-ghost btn-small"
+              hx-on:click="document.getElementById('detail-host').innerHTML = '<p class=&quot;muted&quot;>Select details on a row to inspect an interface.</p>'">close</button>
+    </div>
+  </header>
+
+  {{ self.detail_live() }}
+
+  <div class="chart-wrap">
+    <canvas data-chart
+            data-measurement="bandwidth"
+            data-range="15m"
+            data-interval="5s"
+            data-fields="rx_bytes_per_sec,tx_bytes_per_sec"
+            data-tags="interface:{{ selected.name }}"
+            data-format="rate"
+            data-refresh="15000"
+            height="180"></canvas>
+    <p class="chart-empty muted small" hidden>no samples yet</p>
+  </div>
+  <p class="muted small">JSON history: <span class="mono">/api/interfaces/{{ selected.name }}?range=1h</span></p>
+</div>
+{% else %}
+<p class="muted">Select "details" on a row to inspect an interface.</p>
+{% endif %}
+{% endblock %}
+
+{% block detail_live %}
+{% if selected %}
+<div class="detail-live"
+     hx-get="/interfaces?interface={{ selected.name }}&fragment=detail_live"
+     hx-trigger="every 5s"
+     hx-target="this"
+     hx-swap="outerHTML">
+  <dl class="kv mono">
+    <dt>state</dt><dd>{{ 'up' if selected.is_up else 'down' }}{% if selected.state %} ({{ selected.state }}){% endif %}</dd>
+    <dt>addresses</dt><dd>{{ (selected.ipv4 or [])|join(', ') or '--' }}</dd>
+    <dt>ipv6</dt><dd>{{ (selected.ipv6 or [])|join(', ') or '--' }}</dd>
+    <dt>mac</dt><dd>{{ selected.mac or '--' }}</dd>
+    <dt>mtu</dt><dd>{{ selected.mtu or '--' }}</dd>
+    <dt>duplex</dt><dd>{{ selected.duplex or '--' }}</dd>
+    <dt>speed</dt><dd>{{ (selected.speed_mbps * 1000000)|format_bps if selected.speed_mbps else '--' }}</dd>
+    <dt>gateway</dt><dd>{{ selected.gateway or '--' }}</dd>
+    <dt>dns</dt><dd>{{ (selected.dns_servers or [])|join(', ') or '--' }}</dd>
+    <dt>rx total</dt><dd>{{ selected.rx_bytes|format_bytes }}</dd>
+    <dt>tx total</dt><dd>{{ selected.tx_bytes|format_bytes }}</dd>
+    <dt>rx err/drop</dt><dd>{{ selected.rx_errors or 0 }} / {{ selected.rx_dropped or 0 }}</dd>
+    <dt>tx err/drop</dt><dd>{{ selected.tx_errors or 0 }} / {{ selected.tx_dropped or 0 }}</dd>
+    <dt>rx/s</dt><dd>{{ selected.bandwidth.rx_bytes_per_sec|format_rate if selected.bandwidth else '--' }}</dd>
+    <dt>tx/s</dt><dd>{{ selected.bandwidth.tx_bytes_per_sec|format_rate if selected.bandwidth else '--' }}</dd>
+    <dt>utilization</dt><dd>{{ selected.bandwidth.utilization_percent|format_percent(precision=1) if selected.bandwidth and selected.bandwidth.utilization_percent is not none else '--' }}</dd>
+  </dl>
+</div>
+{% else %}
+<p class="muted">This interface is no longer present in the latest snapshot.</p>
+{% endif %}
+{% endblock %}

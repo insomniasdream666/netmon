@@ -1,0 +1,89 @@
+{% set d = diagnosis %}
+{% if d %}
+<article class="diagnosis-card" data-state="{{ d.state }}">
+  <header class="card-head">
+    <h2>DIAGNOSIS <span class="muted small mono">{{ d.issue_type }}</span></h2>
+    <span class="badge severity-{{ d.severity }}">{{ d.severity|health_glyph }} {{ d.severity }}</span>
+  </header>
+
+  <dl class="kv mono">
+    <dt>source</dt>
+    <dd>{{ d.source }}{% if d.rule_name %} ({{ d.rule_name }}){% endif %}{% if d.model %} / {{ d.model }}{% endif %}</dd>
+    <dt>history id</dt><dd>{{ d.id if d.id is not none else 'not recorded' }}</dd>
+    <dt>duration</dt><dd>{{ '%.0f'|format(d.duration_ms) }} ms</dd>
+    <dt>created</dt><dd>{{ d.created_at[:19]|replace('T', ' ') if d.created_at else '--' }}</dd>
+  </dl>
+
+  <section class="diag-section">
+    <h3>CONFIDENCE</h3>
+    <p class="confidence mono">
+      <span class="glyph state-{{ d.state }}">{{ d.state|health_glyph }}</span>
+      {{ '%.0f'|format(d.confidence) }}%
+    </p>
+    <div class="health-bar" aria-hidden="true"><span style="width: {{ d.confidence }}%"></span></div>
+  </section>
+
+  <section class="diag-section">
+    <h3>DIAGNOSIS</h3>
+    <p class="diagnosis-text">{{ d.diagnosis }}</p>
+    {% if d.issue_details %}<p class="muted small mono">{{ d.issue_details }}</p>{% endif %}
+    {% if d.ai_attempted %}
+    <p class="muted small">AI path: attempted{% if d.ai_error %}, failed ({{ d.ai_error }}){% endif %}</p>
+    {% endif %}
+  </section>
+
+  <section class="diag-section">
+    <h3>FIXES</h3>
+    {% if d.fixes %}
+    <ol class="fix-list">
+      {% for fix in d.fixes %}
+      <li class="fix">
+        <div class="fix-head">
+          <span class="fix-index mono">{{ fix.index }}</span>
+          <code class="command mono">{{ fix.command }}</code>
+          {% if fix.requires_root %}<span class="badge state-warning">root</span>{% endif %}
+          {% if fix.dangerous %}<span class="badge state-critical">dangerous</span>{% endif %}
+          {% if fix.executed %}
+          <span class="badge {{ 'state-ok' if fix.success else 'state-critical' }}">{{ 'executed ok' if fix.success else 'executed failed' }}</span>
+          {% endif %}
+        </div>
+        {% if fix.explanation %}<p class="muted small">{{ fix.explanation }}</p>{% endif %}
+        <div class="row-actions">
+          {% if d.id is not none %}
+          <button type="button" class="btn btn-warning btn-small"
+                  hx-post="/api/fix"
+                  hx-vals='{{ {"diagnosis_id": d.id, "fix_index": fix.index, "confirm": true}|tojson }}'
+                  hx-confirm="Run this command on {{ hostname or 'this host' }}?&#10;&#10;{{ fix.command }}&#10;&#10;It may change your network configuration."
+                  hx-target="#fix-result-{{ fix.index }}"
+                  hx-swap="innerHTML">Run</button>
+          {% else %}
+          <button type="button" class="btn btn-ghost btn-small" disabled
+                  title="this diagnosis was not recorded, so it cannot be executed through the API">Run</button>
+          {% endif %}
+        </div>
+        <div class="fix-result" id="fix-result-{{ fix.index }}"></div>
+      </li>
+      {% endfor %}
+    </ol>
+    {% else %}
+    <p class="muted">No fixes were proposed for this issue.</p>
+    {% endif %}
+  </section>
+
+  <section class="diag-section">
+    <h3>RISKS</h3>
+    <p>{{ d.risks or 'No risks reported.' }}</p>
+  </section>
+
+  <section class="diag-section">
+    <h3>VERIFY</h3>
+    {% if d.verify %}
+    <code class="command mono">{{ d.verify }}</code>
+    {% else %}
+    <p class="muted">No verification command proposed.</p>
+    {% endif %}
+  </section>
+</article>
+{% else %}
+<p class="muted">No diagnosis payload was returned.</p>
+{% endif %}

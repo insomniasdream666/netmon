@@ -1,0 +1,364 @@
+/*
+ * NetMon TUI stylesheet.
+ *
+ * Branding
+ * --------
+ * Background ........ #0D1117   Health green ... #00D084
+ * Warning amber ..... #FFB800   Critical red ... #FF4757
+ * Info blue ......... #00B4D8   Text ........... #C9D1D9
+ * Muted ............. #8B949E
+ *
+ * Font
+ * ----
+ * Textual renders inside the operator's terminal, so the font cannot be set
+ * from CSS.  For the intended look configure the terminal profile with this
+ * monospace stack (metrics, commands and tables are laid out for a monospaced
+ * face):
+ *
+ *     "JetBrains Mono", "JetBrainsMono Nerd Font", "Fira Code",
+ *     "Cascadia Mono", "DejaVu Sans Mono", "Liberation Mono", monospace
+ *
+ * Glyphs are branding glyphs only (no emoji): ● ok/critical, ◐ warning,
+ * ○ unknown, ⟳ running.
+ */
+
+Screen {
+    background: #0D1117;
+    color: #C9D1D9;
+}
+
+Footer {
+    background: #161B22;
+    color: #8B949E;
+}
+
+Footer .footer--key {
+    background: #1F6FEB;
+    color: #FFFFFF;
+    text-style: bold;
+}
+
+.section-title {
+    color: #00B4D8;
+    text-style: bold;
+    padding: 1 1 0 1;
+    height: auto;
+}
+
+/* ------------------------------------------------------------------ *
+ * Dashboard                                                          *
+ * ------------------------------------------------------------------ */
+
+#dashboard-header {
+    height: 6;
+    background: #161B22;
+    border-bottom: round #1F6FEB;
+    padding: 0 1;
+}
+
+#logo {
+    width: 27;
+    height: 5;
+    color: #00D084;
+    text-style: bold;
+    content-align: left middle;
+}
+
+#health-summary {
+    width: 1fr;
+    height: 5;
+    padding: 0 1;
+    content-align: left middle;
+}
+
+#dashboard-scroll {
+    height: 1fr;
+}
+
+#health-grid {
+    layout: grid;
+    grid-size: 4;
+    grid-gutter: 0 1;
+    grid-rows: 4;
+    height: auto;
+    padding: 0 1;
+}
+
+.health-card {
+    height: 4;
+    padding: 0 1;
+    background: #161B22;
+    border: round #30363D;
+}
+
+.health-card.state-ok {
+    border: round #00D084;
+}
+
+.health-card.state-warning {
+    border: round #FFB800;
+}
+
+.health-card.state-critical {
+    border: round #FF4757;
+}
+
+.health-card.state-unknown {
+    border: round #8B949E;
+}
+
+#interface-table {
+    height: auto;
+    max-height: 12;
+    margin: 0 1;
+    background: #0D1117;
+}
+
+#connectivity-panel {
+    height: auto;
+    margin: 0 1;
+    padding: 0 1;
+    background: #0D1117;
+}
+
+#sparkline-grid {
+    layout: grid;
+    grid-size: 3;
+    grid-gutter: 0 1;
+    height: auto;
+    padding: 0 1;
+}
+
+.metric-graph {
+    width: 1fr;
+    height: 4;
+    padding: 0 1;
+    background: #161B22;
+    border: round #30363D;
+}
+
+#monitor-log {
+    height: 9;
+    margin: 0 1;
+    padding: 0 1;
+    background: #0D1117;
+    border: round #30363D;
+}
+
+DataTable {
+    background: #0D1117;
+    color: #C9D1D9;
+}
+
+DataTable > .datatable--header {
+    background: #161B22;
+    color: #00B4D8;
+    text-style: bold;
+}
+
+DataTable > .datatable--cursor {
+    background: #1F6FEB;
+    color: #FFFFFF;
+}
+
+DataTable:focus > .datatable--cursor {
+    background: #1F6FEB;
+}
+
+/* ------------------------------------------------------------------ *
+ * Shared screen chrome                                               *
+ * ------------------------------------------------------------------ */
+
+#interfaces-header,
+#diagnostics-header,
+#alerts-header,
+#settings-header {
+    height: auto;
+    padding: 0 1;
+    background: #161B22;
+    border-bottom: round #1F6FEB;
+}
+
+/* ------------------------------------------------------------------ *
+ * Interfaces                                                         *
+ * ------------------------------------------------------------------ */
+
+#interfaces-scroll,
+#diagnostics-scroll,
+#alerts-scroll,
+#settings-scroll {
+    height: 1fr;
+}
+
+#interfaces-table {
+    height: auto;
+    max-height: 14;
+    margin: 0 1;
+}
+
+#interface-detail {
+    height: auto;
+    margin: 0 1;
+    padding: 0 1;
+    background: #161B22;
+    border: round #30363D;
+}
+
+/* ------------------------------------------------------------------ *
+ * Diagnostics                                                        *
+ * ------------------------------------------------------------------ */
+
+#issues-table {
+    height: auto;
+    max-height: 10;
+    margin: 0 1;
+}
+
+#diagnosis-output {
+    height: auto;
+    min-height: 4;
+    margin: 0 1;
+    padding: 0 1;
+    background: #161B22;
+    border: round #30363D;
+}
+
+#diagnosis-loading {
+    height: 1;
+    margin: 0 1;
+}
+
+#fixes-table {
+    height: auto;
+    max-height: 8;
+    margin: 0 1;
+}
+
+#diagnosis-status {
+    height: auto;
+    margin: 0 1;
+    padding: 0 1;
+}
+
+#fix-confirm {
+    align: center middle;
+    background: #0B0F14;
+}
+
+#confirm-dialog {
+    width: 88;
+    max-width: 96%;
+    height: auto;
+    padding: 1 2;
+    background: #161B22;
+    border: round #FF4757;
+}
+
+#confirm-title {
+    text-style: bold;
+    color: #FF4757;
+    height: auto;
+}
+
+#confirm-command {
+    height: auto;
+    margin: 1 0;
+    padding: 0 1;
+    background: #0D1117;
+    border: round #00D084;
+    text-style: bold;
+}
+
+#confirm-explanation {
+    height: auto;
+    color: #C9D1D9;
+}
+
+#confirm-warning {
+    height: auto;
+    margin-top: 1;
+    text-style: bold;
+}
+
+#confirm-verify {
+    height: auto;
+    margin-top: 1;
+}
+
+#confirm-buttons {
+    height: 3;
+    margin-top: 1;
+    align-horizontal: right;
+}
+
+#confirm-buttons Button {
+    width: 16;
+    margin-left: 2;
+}
+
+/* ------------------------------------------------------------------ *
+ * Alerts                                                             *
+ * ------------------------------------------------------------------ */
+
+#alerts-table {
+    height: auto;
+    max-height: 14;
+    margin: 0 1;
+}
+
+#alert-detail {
+    height: auto;
+    margin: 0 1;
+    padding: 0 1;
+    background: #161B22;
+    border: round #30363D;
+}
+
+#alerts-status {
+    height: auto;
+    margin: 0 1;
+    padding: 0 1;
+}
+
+/* ------------------------------------------------------------------ *
+ * Settings                                                           *
+ * ------------------------------------------------------------------ */
+
+#config-table {
+    height: auto;
+    max-height: 22;
+    margin: 0 1;
+}
+
+#config-editor {
+    height: 3;
+    margin: 0 1;
+    padding: 0 1;
+}
+
+#config-key {
+    width: 36;
+}
+
+#config-value {
+    width: 1fr;
+}
+
+#config-apply {
+    width: 12;
+    margin-left: 1;
+}
+
+#config-message {
+    height: auto;
+    margin: 0 1;
+    padding: 0 1;
+}
+
+#config-examples {
+    height: auto;
+    margin: 0 1;
+    padding: 0 1;
+    color: #8B949E;
+    text-style: italic;
+}

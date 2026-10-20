@@ -1,0 +1,32 @@
+[Unit]
+Description=NetMon - See your network. Fix it fast.
+Documentation=https://github.com/insomniasdream666/netmon
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/env netmon --headless
+WorkingDirectory=%h
+Environment=NETMON_ENV=production
+Environment=PYTHONUNBUFFERED=1
+# Uncomment to tune the AI backend:
+# Environment=INFLUXDB_URL=http://localhost:8086
+# Environment=OLLAMA_HOST=http://localhost:11434
+Restart=on-failure
+RestartSec=5
+# NetMon is I/O bound; keep it polite on small hosts (Raspberry Pi 4).
+Nice=5
+IOSchedulingClass=best-effort
+IOSchedulingPriority=6
+# Raw socket access is only needed for nmap SYN scans and ARP probing.
+# Enable both lines (and CapabilityBoundingSet) if you want them unprivileged;
+# otherwise NetMon falls back to unprivileged TCP connect scans.
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=read-only
+ReadWritePaths=%h/.config/netmon
+PrivateTmp=true
+
+[Install]
+WantedBy=default.target

@@ -1,0 +1,165 @@
+{% extends "base.html" %}
+{% block title %}Diagnostics{% endblock %}
+
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>Diagnostics</h1>
+    <p class="muted">Rule-first diagnosis with optional AI fallback. Fixes never run without an explicit confirmation.</p>
+  </div>
+  <div class="page-head-meta mono muted">
+    <span>diagnoses {{ diagnostics_runtime.diagnoses or 0 }}</span>
+    <span>rule {{ diagnostics_runtime.rule_diagnoses or 0 }}</span>
+    <span>ai {{ diagnostics_runtime.ai_diagnoses or 0 }}</span>
+  </div>
+</div>
+
+{{ self.issues() }}
+
+<section class="card">
+  <header class="card-head">
+    <h2>Diagnosis result</h2>
+    <span class="muted small htmx-indicator" id="diagnosis-spinner">⟳ diagnosing</span>
+  </header>
+  <div id="diagnosis-panel" class="diagnosis-panel">
+    <p class="muted">Choose an issue and press Diagnose. The AI path can take up to 30 seconds.</p>
+  </div>
+</section>
+
+{{ self.history() }}
+{% endblock %}
+
+{% block issues %}
+<section id="issues" class="card"
+         hx-get="/diagnostics?fragment=issues" hx-trigger="every 5s" hx-target="#issues" hx-swap="outerHTML">
+  <header class="card-head">
+    <h2>Current issues</h2>
+    <span class="muted small">{{ issues|length }} active</span>
+  </header>
+  {% if issues %}
+  <ul class="issue-list">
+    {% for issue in issues %}
+    <li class="issue severity-{{ issue.severity }}">
+      <div class="issue-head">
+        <span class="glyph state-{{ issue.severity }}">{{ issue.severity|health_glyph }}</span>
+        <span class="badge severity-{{ issue.severity }}">{{ issue.severity }}</span>
+        <span class="issue-type mono">{{ issue.issue_type }}</span>
+        <span class="muted small mono">{{ issue.component }} / {{ issue.age }}</span>
+      </div>
+      <p class="issue-message">{{ issue.message }}</p>
+      {% if issue.metric %}
+      <p class="muted small mono">{{ issue.metric }} = {{ issue.value }} (threshold {{ issue.threshold }})</p>
+      {% endif %}
+      {% if issue.evidence %}
+      <p class="muted small mono">{{ issue.evidence|join('; ') }}</p>
+      {% endif %}
+      {% if issue.suggested_checks %}
+      <details>
+        <summary class="muted small">suggested checks</summary>
+        <ul class="check-list mono small">
+          {% for check in issue.suggested_checks %}<li>{{ check }}</li>{% endfor %}
+        </ul>
+      </details>
+      {% endif %}
+      <div class="row-actions">
+        <button type="button" class="btn btn-info btn-small"
+                hx-post="/api/diagnose"
+                hx-vals='{{ {"issue_key": issue.key}|tojson }}'
+                hx-target="#diagnosis-panel"
+                hx-swap="innerHTML"
+                hx-indicator="#diagnosis-spinner">Diagnose</button>
+        <button type="button" class="btn btn-ghost btn-small"
+                hx-post="/api/diagnose"
+                hx-vals='{{ {"issue_key": issue.key, "use_ai": false}|tojson }}'
+                hx-target="#diagnosis-panel"
+                hx-swap="innerHTML"
+                hx-indicator="#diagnosis-spinner">Rule only</button>
+      </div>
+    </li>
+    {% endfor %}
+  </ul>
+  {% else %}
+  <p class="muted">No active issues. The network currently looks healthy.</p>
+  {% endif %}
+</section>
+{% endblock %}
+
+{% block history %}
+<section id="history" class="card"
+         hx-get="/diagnostics?fragment=history" hx-trigger="every 15s" hx-target="#history" hx-swap="outerHTML">
+  <header class="card-head">
+    <h2>Diagnostic history</h2>
+    <span class="muted small mono">total {{ stats.total or 0 }}, resolved {{ stats.resolved or 0 }}</span>
+  </header>
+  {% if diagnostics %}
+  <div class="table-wrap">
+    <table class="table">
+      <thead>
+        <tr><th>When</th><th>Issue</th><th>Severity</th><th>Source</th><th>Confidence</th><th>Diagnosis</th><th>Outcome</th><th></th></tr>
+      </thead>
+      <tbody>
+        {% for row in diagnostics %}
+        <tr>
+          <td class="mono small">{{ row.age }}</td>
+          <td class="mono small">{{ row.issue_type }}</td>
+          <td><span class="badge severity-{{ row.severity }}">{{ row.severity }}</span></td>
+          <td class="mono small">{{ row.source }}</td>
+          <td class="mono small">{{ '%.0f'|format(row.confidence) }}%</td>
+          <td class="small">{{ row.diagnosis|truncate(90) }}</td>
+          <td class="small mono">
+            {%- if row.execution_success is sameas true -%}
+            <span class="state-ok">resolved</span>
+            {%- elif row.execution_success is sameas false -%}
+            <span class="state-critical">unresolved</span>
+            {%- elif row.resolution -%}
+            {{ row.resolution }}
+            {%- else -%}
+            --
+            {%- endif -%}
+          </td>
+          <td>
+            <a class="btn btn-ghost btn-small"
+               href="/diagnostics/history/{{ row.id }}"
+               hx-get="/diagnostics/history/{{ row.id }}?fragment=diagnosis_result"
+               hx-target="#diagnosis-panel"
+               hx-swap="innerHTML show:#diagnosis-panel:top"
+               title="Open the full recorded diagnosis">view</a>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <p class="muted">No diagnoses recorded yet.</p>
+  {% endif %}
+</section>
+{% endblock %}
+
+{% block diagnosis_result %}
+{% include "_diagnosis_card.html" %}
+{% endblock %}
+
+{% block fix_result %}
+{% set r = fix_result %}
+{% if r %}
+<article class="fix-result-card" data-state="{{ 'ok' if r.success else 'critical' }}">
+  <p class="mono">
+    <span class="glyph state-{{ 'ok' if r.success else 'critical' }}">{{ ('ok' if r.success else 'critical')|health_glyph }}</span>
+    fix {{ r.fix_index }} {{ 'succeeded' if r.success else 'failed' }}
+    (exit {{ r.exit_code }}, {{ '%.0f'|format(r.duration_ms) }} ms)
+  </p>
+  {% if r.blocked_reason %}<p class="warning-text small">{{ r.blocked_reason }}</p>{% endif %}
+  <pre class="output mono small">{{ r.output or r.error or 'no output' }}</pre>
+  {% if r.verify_command %}
+  <p class="muted small mono">
+    verify: {{ r.verify_command }} ->
+    {%- if r.verify_success is none %} skipped{% elif r.verify_success %} ok{% else %} failed{% endif %}
+  </p>
+  {% if r.verify_output %}<pre class="output mono small">{{ r.verify_output }}</pre>{% endif %}
+  {% endif %}
+</article>
+{% else %}
+<p class="muted">No execution result was returned.</p>
+{% endif %}
+{% endblock %}

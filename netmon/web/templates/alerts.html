@@ -1,0 +1,258 @@
+{% extends "base.html" %}
+{% block title %}Alerts{% endblock %}
+
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>Alerts</h1>
+    <p class="muted">
+      Fired events, threshold rules and notification channels. Rule changes take effect
+      on the next collection cycle; delivery failures never block monitoring.
+    </p>
+  </div>
+  <div class="page-head-meta mono muted">
+    <span>{{ 'enabled' if alerts_enabled else 'disabled' }}</span>
+    <span>min {{ min_severity }}</span>
+    <span>cooldown {{ cooldown }}s</span>
+    <span>{{ unacknowledged }} unacknowledged</span>
+  </div>
+</div>
+
+{{ self.events() }}
+
+<section class="card" id="rule-editor">
+  <header class="card-head">
+    <h2>{% if selected_rule %}Edit rule{% else %}Create a threshold rule{% endif %}</h2>
+    {% if selected_rule %}
+    <a class="btn btn-ghost btn-small" href="/alerts#rule-editor">new rule</a>
+    {% endif %}
+  </header>
+  <form class="form-grid" hx-post="/api/alert-rules" hx-swap="none" hx-disabled-elt="find button"
+        autocomplete="off">
+    <label class="field">
+      <span>Name</span>
+      <input class="input mono" type="text" name="name" required maxlength="64"
+             pattern="[A-Za-z0-9][A-Za-z0-9._-]*"
+             value="{{ selected_rule.name if selected_rule else '' }}"
+             {% if selected_rule %}readonly title="rename by creating a new rule"{% endif %}>
+    </label>
+    <label class="field">
+      <span>Metric</span>
+      <input class="input mono" type="text" name="metric" required list="rule-metrics"
+             value="{{ selected_rule.metric if selected_rule else '' }}"
+             placeholder="connectivity.avg_latency_ms">
+    </label>
+    <label class="field field-narrow">
+      <span>Operator</span>
+      <select class="input" name="operator">
+        {% for operator in operators %}
+        <option value="{{ operator }}" {% if selected_rule and selected_rule.operator == operator %}selected{% endif %}>{{ operator }}</option>
+        {% endfor %}
+      </select>
+    </label>
+    <label class="field field-narrow">
+      <span>Threshold</span>
+      <input class="input mono" type="number" step="any" name="threshold"
+             value="{{ selected_rule.threshold if selected_rule else 0 }}">
+    </label>
+    <label class="field field-narrow">
+      <span>Severity</span>
+      <select class="input" name="severity">
+        {% for severity in severities %}
+        <option value="{{ severity }}" {% if selected_rule and selected_rule.severity == severity %}selected{% endif %}>{{ severity }}</option>
+        {% endfor %}
+      </select>
+    </label>
+    <label class="field field-narrow">
+      <span>Enabled</span>
+      <select class="input" name="enabled">
+        <option value="true" {% if not selected_rule or selected_rule.enabled %}selected{% endif %}>true</option>
+        <option value="false" {% if selected_rule and not selected_rule.enabled %}selected{% endif %}>false</option>
+      </select>
+    </label>
+    <label class="field field-narrow">
+      <span>Cooldown (seconds)</span>
+      <input class="input mono" type="number" step="1" min="0" max="86400" name="cooldown"
+             value="{{ selected_rule.cooldown if selected_rule else 300 }}">
+    </label>
+    <label class="field">
+      <span>Channels (comma-separated labels)</span>
+      <input class="input mono" type="text" name="channels" placeholder="log, ntfy"
+             value="{{ selected_rule.channels|join(', ') if selected_rule else '' }}">
+    </label>
+    <label class="field field-wide">
+      <span>Description</span>
+      <input class="input" type="text" name="description"
+             value="{{ selected_rule.description if selected_rule else '' }}"
+             placeholder="Latency above the warning threshold">
+    </label>
+    <label class="field field-wide">
+      <span>Message template (optional)</span>
+      <input class="input mono" type="text" name="message_template"
+             value="{{ selected_rule.message_template if selected_rule else '' }}"
+             placeholder="{name}: {metric} is {value} (threshold {operator} {threshold})">
+    </label>
+    <div class="row-actions field-wide">
+      <button class="btn btn-info" type="submit">save rule</button>
+      <span class="muted small">POST /api/alert-rules</span>
+    </div>
+  </form>
+  <datalist id="rule-metrics">
+    {% for metric in metric_hints %}<option value="{{ metric }}"></option>{% endfor %}
+  </datalist>
+</section>
+
+{{ self.rules() }}
+{{ self.channels() }}
+{% endblock %}
+
+{% block events %}
+<section id="events" class="card"
+         hx-get="/alerts?fragment=events" hx-trigger="every 15s, alertsChanged from:body"
+         hx-target="#events" hx-swap="outerHTML">
+  <header class="card-head">
+    <h2>Recent alerts</h2>
+    <span class="muted small mono">{{ events|length }} shown, {{ unacknowledged }} unacknowledged</span>
+  </header>
+  {% if events %}
+  <div class="table-wrap">
+    <table class="table">
+      <thead>
+        <tr><th>When</th><th>Severity</th><th>Rule</th><th>Value</th><th>Message</th><th>Delivery</th><th></th></tr>
+      </thead>
+      <tbody>
+        {% for event in events %}
+        <tr>
+          <td class="mono small">{{ event.age }}</td>
+          <td><span class="badge severity-{{ event.severity }}">{{ event.severity }}</span></td>
+          <td class="mono small">{{ event.rule_name }}</td>
+          <td class="mono small">{% if event.value is not none %}{{ '%.4g'|format(event.value) }}{% else %}--{% endif %}</td>
+          <td class="small">{{ event.message }}</td>
+          <td class="small mono">
+            {%- if event.delivered -%}
+            <span class="state-ok">delivered</span>
+            {%- elif event.delivery_errors -%}
+            <span class="state-critical" title="{{ event.delivery_errors|join('; ') }}">failed ({{ event.delivery_errors|length }})</span>
+            {%- else -%}
+            <span class="muted">logged</span>
+            {%- endif -%}
+          </td>
+          <td>
+            {% if event.acknowledged %}
+            <span class="muted small">acknowledged</span>
+            {% else %}
+            <button type="button" class="btn btn-ghost btn-small"
+                    hx-post="/api/alerts/{{ event.id }}/acknowledge"
+                    hx-swap="none" hx-disabled-elt="this">acknowledge</button>
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <p class="muted">No alert events recorded yet. This is normal on a healthy network.</p>
+  {% endif %}
+</section>
+{% endblock %}
+
+{% block rules %}
+<section id="rules" class="card"
+         hx-get="/alerts?fragment=rules" hx-trigger="every 30s, rulesChanged from:body"
+         hx-target="#rules" hx-swap="outerHTML">
+  <header class="card-head">
+    <h2>Threshold rules</h2>
+    <span class="muted small mono">{{ rules|length }} rules</span>
+  </header>
+  {% if rules %}
+  <div class="table-wrap">
+    <table class="table">
+      <thead>
+        <tr><th>Name</th><th>Condition</th><th>Severity</th><th>Cooldown</th><th>State</th><th>Updated</th><th></th></tr>
+      </thead>
+      <tbody>
+        {% for rule in rules %}
+        <tr data-state="{{ 'critical' if rule.severity == 'critical' else '' }}">
+          <td class="mono small">{{ rule.name }}</td>
+          <td class="mono small">{{ rule.metric }} {{ rule.operator }} {{ '%.6g'|format(rule.threshold) }}</td>
+          <td><span class="badge severity-{{ rule.severity }}">{{ rule.severity }}</span></td>
+          <td class="mono small">{{ rule.cooldown }}s</td>
+          <td>
+            {% if rule.enabled %}
+            <span class="badge state-ok">enabled</span>
+            {% else %}
+            <span class="badge state-unknown">disabled</span>
+            {% endif %}
+          </td>
+          <td class="muted small">{{ rule.updated_at|format_ago }}</td>
+          <td>
+            <div class="row-actions">
+              <a class="btn btn-ghost btn-small" href="/alerts?rule={{ rule.name }}#rule-editor">edit</a>
+              <button type="button" class="btn btn-ghost btn-small"
+                      hx-delete="/api/alert-rules/{{ rule.name }}"
+                      hx-confirm="Delete rule {{ rule.name }}? This cannot be undone."
+                      hx-swap="none" hx-disabled-elt="this">delete</button>
+            </div>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <p class="muted">No rules configured. Default rules are seeded on the first monitor start.</p>
+  {% endif %}
+</section>
+{% endblock %}
+
+{% block channels %}
+<section id="channels" class="card"
+         hx-get="/alerts?fragment=channels" hx-trigger="every 60s, configChanged from:body"
+         hx-target="#channels" hx-swap="outerHTML">
+  <header class="card-head">
+    <h2>Notification channels</h2>
+    <span class="muted small mono">alerts.{{ 'enabled' if alerts_enabled else 'disabled' }}, min {{ min_severity }}</span>
+  </header>
+  {% if channels %}
+  <div class="table-wrap">
+    <table class="table">
+      <thead>
+        <tr><th>Type</th><th>Destination</th><th>State</th><th></th></tr>
+      </thead>
+      <tbody>
+        {% for channel in channels %}
+        <tr>
+          <td class="mono small">{{ channel.type }}</td>
+          <td class="mono small">{{ channel.url or 'standard log output' }}</td>
+          <td>
+            {% if channel.enabled %}
+            <span class="badge state-ok">enabled</span>
+            {% else %}
+            <span class="badge state-unknown">disabled</span>
+            {% endif %}
+          </td>
+          <td>
+            <button type="button" class="btn btn-ghost btn-small"
+                    hx-post="/api/alert-channels/{{ channel.index }}/test"
+                    hx-swap="none" hx-disabled-elt="this">send test</button>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  <p class="muted small">
+    Channels are configured under <span class="mono">alerts.channels</span> in
+    <a href="/settings#setting-alerts-channels">Settings</a>. The test alert has severity
+    <span class="mono">info</span> and is not stored as an event.
+  </p>
+  {% else %}
+  <p class="muted">
+    No channels configured. Add <span class="mono">log</span>, <span class="mono">ntfy</span>,
+    <span class="mono">webhook</span> or <span class="mono">discord</span> under
+    <a href="/settings#setting-alerts-channels">alerts.channels</a>.
+  </p>
+  {% endif %}
+</section>
+{% endblock %}
