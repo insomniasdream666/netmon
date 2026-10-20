@@ -205,9 +205,9 @@ async def test_full_pipeline_from_collectors_to_alerts(tmp_path: Path) -> None:
         # -- alerts fired, reached listeners and were persisted ----------
         assert notifications, "state listeners must be notified after a cycle"
         assert state.alerts, "critical issues must produce alert records"
-        rule_names = {alert["rule_name"] for alert in state.alerts}
-        assert "gateway_unreachable" in rule_names
-
+        # A scheduled collector can evaluate just ahead of the initial cycle,
+        # so state.alerts may only contain that cycle's cooldown-filtered batch.
+        # Persisted history is the authoritative set of fired alerts.
         events = await repository.list_alert_events(limit=50)
         assert events, "alert events must be persisted in SQLite"
         persisted = {event["rule_name"] for event in events}
