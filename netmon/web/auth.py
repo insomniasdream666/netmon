@@ -23,6 +23,7 @@ from netmon.config.settings import NetMonConfig
 _USERNAME_ENV = "NETMON_WEB_USERNAME"
 _PASSWORD_ENV = "NETMON_WEB_PASSWORD"
 _DEFAULT_USERNAME = "admin"
+_LOOPBACK_HOSTS = frozenset({"127.0.0.1", "::1", "::ffff:127.0.0.1"})
 _EXEMPT_PATHS = frozenset({"/api/health"})
 _EXEMPT_PREFIXES = ("/static/",)
 
@@ -42,8 +43,14 @@ def credentials_from_env(config: NetMonConfig) -> tuple[str, str] | None:
     return username, password
 
 
-def _is_exempt(path: str) -> bool:
-    return path in _EXEMPT_PATHS or path.startswith(_EXEMPT_PREFIXES)
+def _is_exempt(scope: Scope) -> bool:
+    path = scope.get("path", "")
+    if path.startswith(_EXEMPT_PREFIXES):
+        return True
+    if path not in _EXEMPT_PATHS:
+        return False
+    client = scope.get("client")
+    return bool(client and client[0] in _LOOPBACK_HOSTS)
 
 
 def _live_config(scope: Scope, app: ASGIApp) -> NetMonConfig | None:
@@ -81,7 +88,7 @@ class BasicAuthMiddleware:
         return username_ok and password_ok
 
     async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
-        if scope["type"] not in {"http", "websocket"} or _is_exempt(scope.get("path", "")):
+        if scope["type"] not in {"http", "websocket"} or _is_exempt(scope):
             await self.app(scope, receive, send)
             return
 

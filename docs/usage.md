@@ -420,11 +420,12 @@ internet access.
 > **Security:** NetMon supports optional HTTP Basic authentication. Set
 > `web.auth: true` and `NETMON_WEB_PASSWORD` (plus optional
 > `NETMON_WEB_USERNAME`, default `admin`) to protect pages, REST calls,
-> WebSocket and SSE streams. `/api/health` and `/static/` stay public for
-> container health checks and offline assets. Enabling auth without a password
-> is rejected; when set through `/settings` the check runs before the value is
-> saved. Basic auth does not encrypt traffic, so bind to `127.0.0.1` or use a
-> TLS-terminating reverse proxy on untrusted networks.
+> WebSocket and SSE streams. `/api/health` is exempt only for loopback clients
+> (container health probes) and `/static/` stays public for offline assets.
+> Enabling auth without a password is rejected; when set through `/settings`
+> the check runs before the value is saved. Basic auth does not encrypt
+> traffic, so bind to `127.0.0.1` or use a TLS-terminating reverse proxy on
+> untrusted networks.
 
 ### Pages
 
@@ -523,8 +524,9 @@ page reload.
 ### REST API
 
 All endpoints return JSON unless stated otherwise. When `web.auth` is enabled,
-send HTTP Basic credentials on every request except `GET /api/health`, which
-remains public for container health checks.
+send HTTP Basic credentials on every request. `GET /api/health` is exempt only
+for loopback clients so container health probes keep working; remote health
+requests also require credentials.
 
 | Method | Path | Purpose |
 |---|---|---|
@@ -1301,9 +1303,9 @@ docker compose -f docker/docker-compose.yml --profile host-net up -d netmon-host
 
 Ollama is expected on the host. If it runs elsewhere, set `OLLAMA_HOST` to a
 reachable URL. Compose enables `web.auth`, so the dashboard requires the
-password above. The NetMon container healthcheck calls `/api/health`, which
-stays public. Put these exports in a protected environment file rather than
-committing them.
+password above. The NetMon container healthcheck calls `/api/health` over
+loopback, which stays exempt; remote health calls require credentials. Put
+these exports in a protected environment file rather than committing them.
 
 ---
 

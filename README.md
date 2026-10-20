@@ -201,9 +201,10 @@ Every diagnostics history entry links to its full record at
 [docs/usage.md](docs/usage.md#4-web-dashboard-and-http-api).
 
 When `web.auth` is enabled, every page, REST call, WebSocket and SSE stream
-requires HTTP Basic credentials. `/api/health` and `/static/` remain public so
-container health checks and offline assets keep working. Set the credentials
-in the environment and enable auth in config:
+requires HTTP Basic credentials. `/api/health` stays available to loopback
+health probes and `/static/` remains public, so container health checks and
+offline assets keep working. Set the credentials in the environment and enable
+auth in config:
 
 ```bash
 export NETMON_WEB_USERNAME=admin

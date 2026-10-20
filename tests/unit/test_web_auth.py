@@ -20,12 +20,16 @@ def _header(username: str = "admin", password: str = "correct-horse") -> dict[st
     return {"Authorization": f"Basic {token}"}
 
 
-def _client(
+LOCAL_CLIENT = ("127.0.0.1", 50000)
+REMOTE_CLIENT = ("203.0.113.7", 50001)
+
+
+def _app(
     monkeypatch: pytest.MonkeyPatch,
     *,
     auth: bool = True,
     password: str | None = "correct-horse",
-) -> TestClient:
+) -> FastAPI:
     monkeypatch.setenv("NETMON_WEB_USERNAME", CREDENTIALS[0])
     if password is None:
         monkeypatch.delenv("NETMON_WEB_PASSWORD", raising=False)
@@ -56,7 +60,16 @@ def _client(
     config.web.auth = auth
     app.state.config = config
     app.add_middleware(BasicAuthMiddleware)
-    return TestClient(app)
+    return app
+
+
+def _client(
+    monkeypatch: pytest.MonkeyPatch,
+    *,
+    auth: bool = True,
+    password: str | None = "correct-horse",
+) -> TestClient:
+    return TestClient(_app(monkeypatch, auth=auth, password=password), client=LOCAL_CLIENT)
 
 
 def test_requires_valid_basic_credentials(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -83,11 +96,15 @@ def test_auth_toggle_takes_effect_live(monkeypatch: pytest.MonkeyPatch) -> None:
     assert client.get("/", auth=CREDENTIALS).status_code == 200
 
 
-def test_health_and_static_are_exempt(monkeypatch: pytest.MonkeyPatch) -> None:
-    client = _client(monkeypatch)
+def test_health_is_exempt_for_loopback_only(monkeypatch: pytest.MonkeyPatch) -> None:
+    app = _app(monkeypatch)
+    local = TestClient(app, client=LOCAL_CLIENT)
+    remote = TestClient(app, client=REMOTE_CLIENT)
 
-    assert client.get("/api/health").status_code == 200
-    assert client.get("/static/app.js").status_code == 200
+    assert local.get("/api/health").status_code == 200
+    assert remote.get("/api/health").status_code == 401
+    assert remote.get("/api/health", auth=CREDENTIALS).status_code == 200
+    assert remote.get("/static/app.js").status_code == 200
 
 
 def test_missing_password_is_reported(monkeypatch: pytest.MonkeyPatch) -> None:
