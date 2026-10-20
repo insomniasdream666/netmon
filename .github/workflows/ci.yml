@@ -39,3 +39,14 @@ jobs:
         run: mypy netmon/
       - name: Test
         run: pytest -q tests/unit
+
+  docker:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - uses: actions/checkout@v7
+      - name: Build image
+        run: docker build -f docker/Dockerfile -t netmon:ci .
+      - name: Smoke test
+        run: docker run --rm netmon:ci python -m netmon --version

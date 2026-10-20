@@ -58,6 +58,17 @@ class AlertRulePayload(BaseModel):
             return [part.strip() for part in value.split(",") if part.strip()]
         return value
 
+    @field_validator("channels")
+    @classmethod
+    def _normalize_channels(cls, value: list[str]) -> list[str]:
+        """Trim routing labels and remove duplicates while preserving order."""
+        normalized: list[str] = []
+        for item in value:
+            label = item.strip()
+            if label and label not in normalized:
+                normalized.append(label)
+        return normalized
+
 
 class AlertRuleCreate(AlertRulePayload):
     """A rule name is part of the body for browser-friendly ``POST`` requests."""

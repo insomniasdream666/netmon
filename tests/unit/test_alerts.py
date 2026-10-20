@@ -200,6 +200,164 @@ async def test_webhook_delivery_success_and_failure(tmp_path: Path) -> None:
         await client.aclose()
 
 
+async def test_rule_channels_route_delivery(tmp_path: Path) -> None:
+    captured: list[httpx.Request] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        captured.append(request)
+        return httpx.Response(200, text="ok")
+
+    repository = await open_repository(tmp_path / "routing.db")
+    client = httpx.AsyncClient(transport=httpx.MockTransport(handler))
+    settings = AlertsSettings(
+        cooldown=1,
+        channels=[
+            AlertChannel(type="ntfy", url="https://ntfy.sh/alerts"),
+            AlertChannel(type="webhook", url="https://example.com/hook"),
+        ],
+    )
+    manager = AlertManager(settings, repository, client=client)
+    await manager.start(seed_rules=False)
+    try:
+        await repository.upsert_alert_rule(
+            name="latency-routed",
+            metric="connectivity.avg_latency_ms",
+            operator=">",
+            threshold=100.0,
+            severity="critical",
+            channels=["ntfy"],
+        )
+        report = OverallHealth(score=95.0, state="ok", components=[], issues=[])
+        snapshot = SystemSnapshot(
+            connectivity={
+                "internet": {
+                    "reachable": True,
+                    "avg_latency_ms": 150.0,
+                    "avg_packet_loss": 0.0,
+                    "targets_ok": 1,
+                    "targets_total": 1,
+                }
+            }
+        )
+
+        fired = await manager.evaluate(report, snapshot)
+        routed = next(record for record in fired if record.rule_name == "latency-routed")
+        assert routed.channels == ("ntfy",)
+        assert routed.delivered is True
+        assert len(captured) == 1
+        assert str(captured[0].url) == "https://ntfy.sh/alerts"
+    finally:
+        await manager.stop()
+        await repository.close()
+        await client.aclose()
+
+
+async def test_rule_channel_labels_match_type_name_and_url(tmp_path: Path) -> None:
+    ntfy = AlertChannel(type="ntfy", url="https://ntfy.sh/alerts")
+    webhook = AlertChannel(type="webhook", url="https://example.com/hook")
+    manager, repository = await make_manager(tmp_path, channels=[ntfy, webhook])
+    try:
+        for label in ("ntfy", "ntfy:alerts", "https://ntfy.sh/alerts"):
+            assert manager._select_channels((label,)) == [ntfy]
+        assert manager._select_channels(("missing",)) == [ntfy, webhook]
+        assert manager._select_channels(()) == [ntfy, webhook]
+    finally:
+        await manager.stop()
+        await repository.close()
+
+
+async def test_unknown_rule_channels_fall_back_to_all_channels(tmp_path: Path) -> None:
+    captured: list[httpx.Request] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        captured.append(request)
+        return httpx.Response(200, text="ok")
+
+    repository = await open_repository(tmp_path / "fallback.db")
+    client = httpx.AsyncClient(transport=httpx.MockTransport(handler))
+    settings = AlertsSettings(
+        cooldown=1,
+        channels=[
+            AlertChannel(type="ntfy", url="https://ntfy.sh/alerts"),
+            AlertChannel(type="webhook", url="https://example.com/hook"),
+        ],
+    )
+    manager = AlertManager(settings, repository, client=client)
+    await manager.start(seed_rules=False)
+    try:
+        await repository.upsert_alert_rule(
+            name="latency-typo",
+            metric="connectivity.avg_latency_ms",
+            operator=">",
+            threshold=100.0,
+            severity="critical",
+            channels=["ntfyy"],
+        )
+        report = OverallHealth(score=95.0, state="ok", components=[], issues=[])
+        snapshot = SystemSnapshot(
+            connectivity={
+                "internet": {
+                    "reachable": True,
+                    "avg_latency_ms": 150.0,
+                    "avg_packet_loss": 0.0,
+                    "targets_ok": 1,
+                    "targets_total": 1,
+                }
+            }
+        )
+
+        fired = await manager.evaluate(report, snapshot)
+        routed = next(record for record in fired if record.rule_name == "latency-typo")
+        assert routed.delivered is True
+        assert len(captured) == 2
+    finally:
+        await manager.stop()
+        await repository.close()
+        await client.aclose()
+
+
+async def test_rule_routing_to_disabled_channel_records_error(tmp_path: Path) -> None:
+    repository = await open_repository(tmp_path / "disabled.db")
+    settings = AlertsSettings(
+        cooldown=1,
+        channels=[
+            AlertChannel(type="ntfy", url="https://ntfy.sh/alerts", enabled=False),
+            AlertChannel(type="webhook", url="https://example.com/hook"),
+        ],
+    )
+    manager = AlertManager(settings, repository)
+    await manager.start(seed_rules=False)
+    try:
+        await repository.upsert_alert_rule(
+            name="latency-disabled",
+            metric="connectivity.avg_latency_ms",
+            operator=">",
+            threshold=100.0,
+            severity="critical",
+            channels=["ntfy"],
+        )
+        report = OverallHealth(score=95.0, state="ok", components=[], issues=[])
+        snapshot = SystemSnapshot(
+            connectivity={
+                "internet": {
+                    "reachable": True,
+                    "avg_latency_ms": 150.0,
+                    "avg_packet_loss": 0.0,
+                    "targets_ok": 1,
+                    "targets_total": 1,
+                }
+            }
+        )
+
+        fired = await manager.evaluate(report, snapshot)
+        routed = next(record for record in fired if record.rule_name == "latency-disabled")
+        assert routed.delivered is False
+        assert any("no enabled channel" in error for error in routed.delivery_errors)
+    finally:
+        await manager.stop()
+        await repository.close()
+
+
 async def test_listener_receives_fired_alerts(tmp_path: Path) -> None:
     manager, repository = await make_manager(tmp_path, cooldown=1)
     received: list[AlertRecord] = []

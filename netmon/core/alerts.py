@@ -114,6 +114,7 @@ class AlertRecord:
     metric: str = ""
     value: float | None = None
     payload: dict[str, Any] = field(default_factory=dict)
+    channels: tuple[str, ...] = ()
     created_at: datetime = field(default_factory=utcnow)
     event_id: int | None = None
     delivered: bool = False
@@ -129,6 +130,7 @@ class AlertRecord:
             "metric": self.metric,
             "value": self.value,
             "payload": self.payload,
+            "channels": list(self.channels),
             "created_at": self.created_at.isoformat(),
             "delivered": self.delivered,
             "delivery_errors": list(self.delivery_errors),
@@ -279,6 +281,11 @@ class AlertManager:
                 if template
                 else f"{metric_name} is {float(value):.2f} (threshold {rule.get('operator')} {threshold:g})"
             )
+            routing = tuple(
+                label
+                for label in (str(item).strip() for item in (rule.get("channels") or []))
+                if label
+            )
             records.append(
                 AlertRecord(
                     rule_name=str(rule.get("name", metric_name)),
@@ -286,6 +293,7 @@ class AlertManager:
                     message=message,
                     metric=metric_name,
                     value=float(value),
+                    channels=routing,
                     payload={
                         "threshold": threshold,
                         "operator": rule.get("operator"),
@@ -329,13 +337,46 @@ class AlertManager:
 
     # -- delivery ------------------------------------------------------------
 
+    @staticmethod
+    def _channel_labels(channel: AlertChannel) -> set[str]:
+        labels = {channel.type, channel.display_name()}
+        if channel.url:
+            labels.add(channel.url)
+        return {label.strip().casefold() for label in labels if label and label.strip()}
+
+    def _select_channels(self, routing: tuple[str, ...]) -> list[AlertChannel]:
+        """Resolve rule routing labels to configured channels.
+
+        An empty routing list means every enabled channel (the historical
+        behaviour). Labels match a channel type, display name or URL. Unknown
+        labels fall back to all enabled channels so a typo cannot silently
+        drop a critical alert; a label that matches only disabled channels
+        deliberately delivers nothing.
+        """
+        configured = list(self.settings.channels)
+        requested = {label.strip().casefold() for label in routing if label and label.strip()}
+        if not requested:
+            return [channel for channel in configured if channel.enabled]
+
+        matched = [channel for channel in configured if requested & self._channel_labels(channel)]
+        if not matched:
+            logger.warning(
+                "alert routing labels %s matched no configured channels; using all enabled channels",
+                ", ".join(sorted(requested)),
+            )
+            return [channel for channel in configured if channel.enabled]
+        return [channel for channel in matched if channel.enabled]
+
     async def _dispatch(self, record: AlertRecord) -> None:
         errors: list[str] = []
         delivered = False
 
-        for channel in self.settings.channels:
-            if not channel.enabled:
-                continue
+        channels = self._select_channels(record.channels)
+        if record.channels and not channels:
+            errors.append(
+                "no enabled channel matched rule routing: " + ", ".join(record.channels)
+            )
+        for channel in channels:
             ok, error = await self._deliver(channel, record)
             delivered = delivered or ok
             if error:

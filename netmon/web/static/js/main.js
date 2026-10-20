@@ -321,6 +321,41 @@
         { code: "...", swap: false },
       ];
     }
+
+    var pendingActions = 0;
+
+    function isActionRequest(detail) {
+      var config = detail && detail.requestConfig ? detail.requestConfig : {};
+      return String(config.verb || "get").toLowerCase() !== "get";
+    }
+
+    function pollAncestor(element) {
+      if (!element || !element.closest) { return null; }
+      return element.closest('[hx-trigger*="every"]');
+    }
+
+    /*
+     * A poll swap can remove the button that started an ack/delete/test
+     * request, which drops the response toast and the HX-Trigger refresh.
+     * Abort the surrounding poll as soon as a mutating request starts and
+     * pause its timer until every in-flight action has finished.
+     */
+    document.addEventListener("htmx:beforeRequest", function (event) {
+      var detail = event.detail || {};
+      if (!isActionRequest(detail)) { return; }
+      pendingActions += 1;
+      document.body.classList.add("netmon-action-pending");
+      var poll = pollAncestor(detail.elt);
+      if (poll) { htmx.trigger(poll, "htmx:abort"); }
+    });
+
+    document.addEventListener("htmx:afterRequest", function (event) {
+      if (!isActionRequest(event.detail || {})) { return; }
+      pendingActions = Math.max(0, pendingActions - 1);
+      if (pendingActions === 0) {
+        document.body.classList.remove("netmon-action-pending");
+      }
+    });
     document.addEventListener("htmx:afterSwap", function (event) {
       initCharts(event.target || document);
     });

@@ -80,7 +80,7 @@ SETTING_OPTIONS: dict[str, tuple[str, ...]] = {
 
 # Keys that exist in the model but have no effect yet; labelled in the UI so
 # operators are not surprised when they change nothing.
-RESERVED_SETTINGS = frozenset({"web.refresh_interval"})
+RESERVED_SETTINGS: frozenset[str] = frozenset()
 
 
 # ---------------------------------------------------------------------------
@@ -452,6 +452,9 @@ async def _alerts_context(request: Request) -> dict[str, Any]:
             }
             for index, channel in enumerate(alert_settings.channels)
         ]
+    channel_labels = sorted(
+        {channel["type"] for channel in channels} | {channel["name"] for channel in channels}
+    )
 
     selected_name = request.query_params.get("rule")
     selected_rule = (
@@ -466,6 +469,7 @@ async def _alerts_context(request: Request) -> dict[str, Any]:
         "rules": rules,
         "events": [_alert_view(event) for event in events],
         "channels": channels,
+        "channel_labels": channel_labels,
         "alerts_enabled": alert_settings.enabled if alert_settings is not None else False,
         "cooldown": alert_settings.cooldown if alert_settings is not None else 0,
         "min_severity": alert_settings.min_severity if alert_settings is not None else "warning",
@@ -496,6 +500,9 @@ def _render_page(
     fragment = request.query_params.get("fragment")
     context = dict(context)
     context["fragment"] = fragment if fragment in fragments else None
+    config = getattr(request.app.state, "config", None)
+    web_settings = getattr(config, "web", None)
+    context["refresh_interval"] = int(getattr(web_settings, "refresh_interval", 5))
     return templates.TemplateResponse(request, template, context)
 
 

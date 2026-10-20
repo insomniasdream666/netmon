@@ -32,7 +32,8 @@ and requires an explicit confirmation.
   score with `ok` / `warning` / `critical` states.
 - **Alerting** — default threshold rules plus issue-derived alerts, cooldown
   suppression, SQLite-persisted event history and log/ntfy/webhook/discord
-  channels, with a browser rule editor and per-channel test buttons.
+  channels, with a browser rule editor, per-rule channel routing and
+  per-channel test buttons.
 - **Rule + AI diagnostics** — 17 deterministic rules cover the common faults;
   anything else goes to a local Ollama model with a strict JSON output contract
   (`diagnosis`, `confidence`, `fixes`, `risks`, `verify`). AI failures always
@@ -50,6 +51,17 @@ and requires an explicit confirmation.
 - **Two storage layers** — SQLite for config/state/history, InfluxDB for
   time-series metrics (with an in-memory ring-buffer fallback so NetMon keeps
   working when InfluxDB is down).
+
+## Screenshots
+
+The dashboard is dark-first by design and works without external CDNs:
+
+![NetMon dashboard](docs/screenshots/dashboard.png)
+
+The alerts page combines event history, per-rule channel routing and
+per-channel tests:
+
+![NetMon alerts and rule editor](docs/screenshots/alerts-rules.png)
 
 ## Requirements
 

@@ -7,7 +7,7 @@
     <h1>Interfaces</h1>
     <p class="muted">
       Monitoring {{ interfaces|length }} interface(s){% if ignored_interfaces %}, ignoring {{ ignored_interfaces|length }}{% endif %}.
-      Expand a row for live counters; the panel refreshes every 5 seconds.
+      Expand a row for live counters; the panel refreshes every {{ refresh_interval }} seconds.
     </p>
   </div>
   <div class="page-head-meta mono muted">
@@ -110,7 +110,7 @@
 {% if selected %}
 <div class="detail-live"
      hx-get="/interfaces?interface={{ selected.name }}&fragment=detail_live"
-     hx-trigger="every 5s"
+     hx-trigger="every {{ refresh_interval }}s"
      hx-target="this"
      hx-swap="outerHTML">
   <dl class="kv mono">

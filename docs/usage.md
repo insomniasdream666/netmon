@@ -438,16 +438,17 @@ internet access.
 - Recent alerts and diagnostic counters.
 - Bandwidth and health history charts (InfluxDB, with memory fallback).
 
-The summary, connectivity, interfaces and alerts cards refresh every 5
-seconds via HTMX. The page also opens a WebSocket (`/ws/live`) for state
-pushes and an SSE stream (`/sse/alerts`) for new alerts.
+The summary, connectivity, interfaces and alerts cards refresh on the
+`web.refresh_interval` cadence (default 5 seconds) via HTMX. The page also
+opens a WebSocket (`/ws/live`) for state pushes and an SSE stream
+(`/sse/alerts`) for new alerts.
 
 #### Interfaces (`/interfaces`)
 
 - Table of monitored interfaces with state, addresses, speed, RX/TX rate,
   errors and utilisation.
 - `details` expands live counters and a 15-minute bandwidth chart; the panel
-  refreshes every 5 seconds.
+  refreshes on the configured `web.refresh_interval` cadence.
 - Ignored interfaces (matching `monitoring.ignored_interfaces`) are listed
   separately and excluded from health/alerts.
 
@@ -474,14 +475,23 @@ pushes and an SSE stream (`/sse/alerts`) for new alerts.
   it after confirmation. The table refreshes every 30 seconds and immediately
   after a save or delete.
 - **Rule editor** — create or replace a rule by name (metric, operator,
-  threshold, severity, enabled, cooldown, channel labels, description and
+  threshold, severity, enabled, cooldown, channel routing, description and
   message template). Changes apply on the next collection cycle.
 - **Notification channels** — the channels from `alerts.channels`, with a
   `send test` button per channel. Tests send an `info` probe and are not stored
   as alert events.
-- Per-rule `channels` values are stored as labels with the rule; delivery
-  currently uses the global `alerts.channels` list. Use the test buttons to
-  verify the global channel configuration.
+- **Per-rule routing** — a rule's `channels` labels select its delivery
+  targets. Labels match a channel type (`log`, `ntfy`, `webhook`, `discord`),
+  its display name (`ntfy:my-topic`) or its URL. Leave the field blank to send
+  to every enabled channel. If no label matches a configured channel, NetMon
+  logs a warning and falls back to all enabled channels so a typo cannot
+  silently drop an alert. A label that matches only disabled channels
+  deliberately delivers nothing and records a delivery error. Health-issue
+  alerts have no threshold-rule row, so they continue to use every enabled
+  channel.
+- Polling pauses while an acknowledge, delete, test or diagnose request is in
+  flight, so the fragment swap cannot detach the button and lose its response
+  toast or refresh.
 
 #### Settings (`/settings`)
 
@@ -496,8 +506,9 @@ pushes and an SSE stream (`/sse/alerts`) for new alerts.
 - `web.auth` applies immediately and requires `NETMON_WEB_PASSWORD`; saving it
   without that environment variable returns a validation error. Use
   `NETMON_WEB_USERNAME` to change the default `admin` username.
-- `web.refresh_interval` is labelled **reserved** because the current build
-  parses it but the dashboard still uses fixed 5-second HTMX refreshes.
+- `web.refresh_interval` controls the dashboard, current-issues and selected
+  interface refresh cadence (1-300 seconds). New or reloaded pages pick up the
+  saved value immediately; the settings page itself does not poll.
 - Environment variables still override saved YAML values on the next start.
 
 ### HTML fragments (HTMX)
@@ -696,9 +707,9 @@ without `name` (the path supplies it).
 
 `operator` is one of `>`, `>=`, `<`, `<=`, `==`, `!=`; `severity` is `info`,
 `warning` or `critical`. `channels` accepts a JSON array or a comma-separated
-string. The values are stored with the rule as labels; delivery currently uses
-the global `alerts.channels` list. `DELETE /api/alert-rules/{name}` removes a
-rule.
+string. The labels select configured channels by type, display name or URL;
+blank means all enabled channels. Unknown labels fall back to all enabled
+channels with a warning. `DELETE /api/alert-rules/{name}` removes a rule.
 
 `POST /api/alert-channels/{index}/test` sends the synthetic message
 `NetMon test alert: channel configuration is working.` (`info` severity) to the
@@ -894,7 +905,7 @@ blank; rows show `source: memory`.
 | `host` | `0.0.0.0` | Bind address |
 | `port` | `8080` | Listen port (1-65535) |
 | `auth` | `false` | Require HTTP Basic auth; credentials are environment-only |
-| `refresh_interval` | `5` | Reserved; the dashboard uses fixed 5-second HTMX refresh |
+| `refresh_interval` | `5` | Seconds between dashboard/current-issue/interface refreshes (1-300) |
 
 ### `tui`
 
@@ -1001,6 +1012,7 @@ storage:
 web:
   host: 0.0.0.0
   port: 8080
+  refresh_interval: 5
 
 tui:
   refresh_interval: 2.0

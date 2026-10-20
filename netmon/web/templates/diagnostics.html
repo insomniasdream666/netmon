@@ -31,7 +31,7 @@
 
 {% block issues %}
 <section id="issues" class="card"
-         hx-get="/diagnostics?fragment=issues" hx-trigger="every 5s" hx-target="#issues" hx-swap="outerHTML">
+         hx-get="/diagnostics?fragment=issues" hx-trigger="every {{ refresh_interval }}s [!document.body.classList.contains('netmon-action-pending')]" hx-target="#issues" hx-swap="outerHTML">
   <header class="card-head">
     <h2>Current issues</h2>
     <span class="muted small">{{ issues|length }} active</span>

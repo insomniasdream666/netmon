@@ -5,7 +5,7 @@
 <div class="page-head">
   <div>
     <h1>Dashboard</h1>
-    <p class="muted">Live health for {{ hostname or 'this host' }}. Sections refresh every 5 seconds.</p>
+    <p class="muted">Live health for {{ hostname or 'this host' }}. Sections refresh every {{ refresh_interval }} seconds.</p>
   </div>
   <div class="page-head-meta mono muted">
     <span>cycles {{ cycles }}</span>
@@ -100,7 +100,7 @@
 
 {% block summary %}
 <section id="summary" class="grid-summary"
-         hx-get="/?fragment=summary" hx-trigger="every 5s" hx-target="#summary" hx-swap="outerHTML">
+         hx-get="/?fragment=summary" hx-trigger="every {{ refresh_interval }}s" hx-target="#summary" hx-swap="outerHTML">
   <article class="card score-card" data-state="{{ state_name }}">
     <header class="card-head">
       <h2>Health score</h2>
@@ -140,7 +140,7 @@
 
 {% block connectivity %}
 <section id="connectivity" class="card"
-         hx-get="/?fragment=connectivity" hx-trigger="every 5s" hx-target="#connectivity" hx-swap="outerHTML">
+         hx-get="/?fragment=connectivity" hx-trigger="every {{ refresh_interval }}s" hx-target="#connectivity" hx-swap="outerHTML">
   <header class="card-head">
     <h2>Connectivity</h2>
     <span class="muted small mono">{{ connectivity.collected_at|format_ago if connectivity.collected_at else 'never' }}</span>
@@ -222,7 +222,7 @@
 
 {% block interfaces %}
 <section id="interfaces" class="card"
-         hx-get="/?fragment=interfaces" hx-trigger="every 5s" hx-target="#interfaces" hx-swap="outerHTML">
+         hx-get="/?fragment=interfaces" hx-trigger="every {{ refresh_interval }}s" hx-target="#interfaces" hx-swap="outerHTML">
   <header class="card-head">
     <h2>Interfaces</h2>
     <a class="small" href="/interfaces">open detail view</a>
@@ -260,7 +260,7 @@
 
 {% block alerts %}
 <section id="alerts" class="card"
-         hx-get="/?fragment=alerts" hx-trigger="every 5s" hx-target="#alerts" hx-swap="outerHTML">
+         hx-get="/?fragment=alerts" hx-trigger="every {{ refresh_interval }}s" hx-target="#alerts" hx-swap="outerHTML">
   <header class="card-head">
     <h2>Recent alerts</h2>
     <span class="muted small mono">sent {{ alert_stats.sent or 0 }}, suppressed {{ alert_stats.suppressed or 0 }}</span>

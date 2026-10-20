@@ -74,7 +74,7 @@ def test_setting_items_group_and_skip_secret() -> None:
     assert flat["monitoring.targets.ping"]["kind"] == "json"
     assert flat["env"]["options"] == ("development", "production", "test")
     assert flat["web.auth"]["reserved"] is False
-    assert flat["web.refresh_interval"]["reserved"] is True
+    assert flat["web.refresh_interval"]["reserved"] is False
 
 
 def test_alert_rule_payload_accepts_form_channel_string() -> None:
@@ -88,6 +88,35 @@ def test_alert_rule_payload_accepts_form_channel_string() -> None:
 
     assert payload.channels == ["log", "ntfy"]
     assert payload.enabled is True
+
+
+def test_alert_rule_payload_normalizes_channel_labels() -> None:
+    from netmon.web.api.config import AlertRuleCreate
+
+    payload = AlertRuleCreate(
+        name="custom-latency",
+        metric="connectivity.avg_latency_ms",
+        channels=[" log ", "ntfy", "log", ""],
+    )
+
+    assert payload.channels == ["log", "ntfy"]
+
+
+def test_dashboard_fragment_uses_configured_refresh_interval() -> None:
+    html = templates.env.get_template("dashboard.html").render(
+        fragment="summary",
+        refresh_interval=7,
+        state_name="ok",
+        score=98.0,
+        health=None,
+        components=[],
+        issue_count=0,
+        cycles=3,
+        uptime_text="1m",
+    )
+
+    assert "every 7s" in html
+    assert "every 5s" not in html
 
 
 def test_alerts_events_fragment_updates_header_count() -> None:

@@ -78,7 +78,9 @@
     <label class="field">
       <span>Channels (comma-separated labels)</span>
       <input class="input mono" type="text" name="channels" placeholder="log, ntfy"
+             list="rule-channels"
              value="{{ selected_rule.channels|join(', ') if selected_rule else '' }}">
+      <span class="muted small">Blank sends to every enabled channel. Labels match a channel type or display name.</span>
     </label>
     <label class="field field-wide">
       <span>Description</span>
@@ -100,6 +102,9 @@
   <datalist id="rule-metrics">
     {% for metric in metric_hints %}<option value="{{ metric }}"></option>{% endfor %}
   </datalist>
+  <datalist id="rule-channels">
+    {% for label in channel_labels %}<option value="{{ label }}"></option>{% endfor %}
+  </datalist>
 </section>
 
 {{ self.rules() }}
@@ -108,7 +113,7 @@
 
 {% block events %}
 <section id="events" class="card"
-         hx-get="/alerts?fragment=events" hx-trigger="every 15s, alertsChanged from:body"
+         hx-get="/alerts?fragment=events" hx-trigger="every 15s [!document.body.classList.contains('netmon-action-pending')], alertsChanged from:body"
          hx-target="#events" hx-swap="outerHTML">
   <header class="card-head">
     <h2>Recent alerts</h2>
@@ -162,7 +167,7 @@
 
 {% block rules %}
 <section id="rules" class="card"
-         hx-get="/alerts?fragment=rules" hx-trigger="every 30s, rulesChanged from:body"
+         hx-get="/alerts?fragment=rules" hx-trigger="every 30s [!document.body.classList.contains('netmon-action-pending')], rulesChanged from:body"
          hx-target="#rules" hx-swap="outerHTML">
   <header class="card-head">
     <h2>Threshold rules</h2>
@@ -172,7 +177,7 @@
   <div class="table-wrap">
     <table class="table">
       <thead>
-        <tr><th>Name</th><th>Condition</th><th>Severity</th><th>Cooldown</th><th>State</th><th>Updated</th><th></th></tr>
+        <tr><th>Name</th><th>Condition</th><th>Severity</th><th>Cooldown</th><th>Channels</th><th>State</th><th>Updated</th><th></th></tr>
       </thead>
       <tbody>
         {% for rule in rules %}
@@ -181,6 +186,7 @@
           <td class="mono small">{{ rule.metric }} {{ rule.operator }} {{ '%.6g'|format(rule.threshold) }}</td>
           <td><span class="badge severity-{{ rule.severity }}">{{ rule.severity }}</span></td>
           <td class="mono small">{{ rule.cooldown }}s</td>
+          <td class="mono small">{{ rule.channels|join(', ') if rule.channels else 'all enabled' }}</td>
           <td>
             {% if rule.enabled %}
             <span class="badge state-ok">enabled</span>
@@ -211,7 +217,7 @@
 
 {% block channels %}
 <section id="channels" class="card"
-         hx-get="/alerts?fragment=channels" hx-trigger="every 60s, configChanged from:body"
+         hx-get="/alerts?fragment=channels" hx-trigger="every 60s [!document.body.classList.contains('netmon-action-pending')], configChanged from:body"
          hx-target="#channels" hx-swap="outerHTML">
   <header class="card-head">
     <h2>Notification channels</h2>
